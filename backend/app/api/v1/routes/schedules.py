@@ -1,0 +1,339 @@
+"""
+API routes for managing schedules.
+"""
+
+from datetime import datetime, timezone
+from uuid import UUID, uuid4
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.v1.schemas.schedule import (
+    ScheduleCreate,
+    ScheduleEntryResponse,
+    ScheduleGenerateRequest,
+    ScheduleGenerateResponse,
+    ScheduleResponse,
+    ScheduleUpdate,
+)
+from app.core.dependencies import get_current_user
+from app.db.models.institution import Institution
+from app.db.models.schedule import Schedule
+from app.db.models.schedule_entry import ScheduleEntry
+from app.db.models.user import User
+from app.db.session import get_db_session
+from app.export.pdf_generator import PDFScheduleExporter
+from app.scheduler.schedule_generator import ScheduleGenerator
+from app.storage.s3 import get_s3_client
+
+router = APIRouter(prefix="/schedules", tags=["Schedules"])
+
+
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=ScheduleResponse)
+async def create_schedule(
+    data: ScheduleCreate,
+    institution_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> ScheduleResponse:
+    """Create a new schedule."""
+    # Verify that the institution belongs to the user
+    result = await db.execute(
+        select(Institution).where(
+            Institution.id == institution_id, Institution.user_id == current_user.id
+        )
+    )
+    institution = result.scalar_one_or_none()
+    if not institution:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Institution not found"
+        )
+
+    schedule = Schedule(
+        id=uuid4(),
+        institution_id=institution_id,
+        name=data.name,
+        academic_period=data.academic_period,
+        status="draft",
+    )
+    db.add(schedule)
+    await db.commit()
+    await db.refresh(schedule)
+    return ScheduleResponse.model_validate(schedule)
+
+
+@router.get("", response_model=list[ScheduleResponse])
+async def list_schedules(
+    institution_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[ScheduleResponse]:
+    """Get list of institution schedules."""
+    # Verify that the institution belongs to the user
+    result = await db.execute(
+        select(Institution).where(
+            Institution.id == institution_id, Institution.user_id == current_user.id
+        )
+    )
+    institution = result.scalar_one_or_none()
+    if not institution:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Institution not found"
+        )
+
+    result = await db.execute(
+        select(Schedule).where(Schedule.institution_id == institution_id)
+    )
+    schedules = result.scalars().all()
+    return [ScheduleResponse.model_validate(s) for s in schedules]
+
+
+@router.get("/{schedule_id}", response_model=ScheduleResponse)
+async def get_schedule(
+    schedule_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> ScheduleResponse:
+    """Get schedule by ID with entries."""
+    result = await db.execute(
+        select(Schedule)
+        .join(Institution)
+        .where(Schedule.id == schedule_id, Institution.user_id == current_user.id)
+    )
+    schedule = result.scalar_one_or_none()
+    if not schedule:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found"
+        )
+
+    # Load schedule entries
+    entries_result = await db.execute(
+        select(ScheduleEntry).where(ScheduleEntry.schedule_id == schedule_id)
+    )
+    entries = entries_result.scalars().all()
+
+    schedule_dict = ScheduleResponse.model_validate(schedule).model_dump()
+    schedule_dict["entries"] = [
+        ScheduleEntryResponse.model_validate(entry) for entry in entries
+    ]
+    return ScheduleResponse.model_validate(schedule_dict)
+
+
+@router.post("/{schedule_id}/generate", response_model=ScheduleGenerateResponse)
+async def generate_schedule(
+    schedule_id: UUID,
+    request: ScheduleGenerateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> ScheduleGenerateResponse:
+    """Generate schedule using SAT solver."""
+    # Verify that the schedule belongs to the user
+    result = await db.execute(
+        select(Schedule)
+        .join(Institution)
+        .where(Schedule.id == schedule_id, Institution.user_id == current_user.id)
+    )
+    schedule = result.scalar_one_or_none()
+    if not schedule:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found"
+        )
+
+    # Generate schedule
+    generator = ScheduleGenerator(db)
+    success, schedule_entries, error = await generator.generate(
+        schedule.institution_id, timeout=request.timeout
+    )
+
+    if not success:
+        return ScheduleGenerateResponse(
+            success=False, message=error or "Generation failed", entries_count=None
+        )
+
+    # Remove old schedule entries
+    result = await db.execute(
+        select(ScheduleEntry).where(ScheduleEntry.schedule_id == schedule_id)
+    )
+    old_entries = result.scalars().all()
+    for entry in old_entries:
+        await db.delete(entry)
+
+    # Create new entries
+    for entry_data in schedule_entries:
+        entry = ScheduleEntry(
+            id=uuid4(),
+            institution_id=schedule.institution_id,
+            schedule_id=schedule_id,
+            lesson_id=entry_data["lesson_id"],
+            teacher_id=entry_data["teacher_id"],
+            class_group_id=entry_data.get("class_group_id"),
+            study_group_id=entry_data.get("study_group_id"),
+            room_id=entry_data["room_id"],
+            time_slot_id=entry_data["time_slot_id"],
+        )
+        db.add(entry)
+
+    # Update schedule status
+    schedule.status = "generated"
+    schedule.generated_at = datetime.now(timezone.utc)
+
+    await db.commit()
+
+    return ScheduleGenerateResponse(
+        success=True,
+        message="Schedule generated successfully",
+        entries_count=len(schedule_entries),
+    )
+
+
+@router.put("/{schedule_id}", response_model=ScheduleResponse)
+async def update_schedule(
+    schedule_id: UUID,
+    data: ScheduleUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> ScheduleResponse:
+    """Update schedule."""
+    result = await db.execute(
+        select(Schedule)
+        .join(Institution)
+        .where(Schedule.id == schedule_id, Institution.user_id == current_user.id)
+    )
+    schedule = result.scalar_one_or_none()
+    if not schedule:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found"
+        )
+
+    if data.name is not None:
+        schedule.name = data.name
+    if data.academic_period is not None:
+        schedule.academic_period = data.academic_period
+    if data.status is not None:
+        schedule.status = data.status
+
+    await db.commit()
+    await db.refresh(schedule)
+    return ScheduleResponse.model_validate(schedule)
+
+
+@router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_schedule(
+    schedule_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> None:
+    """Delete schedule."""
+    result = await db.execute(
+        select(Schedule)
+        .join(Institution)
+        .where(Schedule.id == schedule_id, Institution.user_id == current_user.id)
+    )
+    schedule = result.scalar_one_or_none()
+    if not schedule:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found"
+        )
+
+    await db.delete(schedule)
+    await db.commit()
+
+
+@router.get("/{schedule_id}/export/pdf")
+async def export_schedule_pdf(
+    schedule_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+    s3_storage=Depends(get_s3_client),
+) -> dict:
+    """Export schedule to PDF and upload to S3, return pre-signed URL."""
+    # Verify access
+    result = await db.execute(
+        select(Schedule)
+        .join(Institution)
+        .where(Schedule.id == schedule_id, Institution.user_id == current_user.id)
+    )
+    schedule = result.scalar_one_or_none()
+    if not schedule:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found"
+        )
+
+    # Load entries and related data
+    from sqlalchemy.orm import selectinload
+
+    from app.db.models import ClassGroup, Lesson, Room, Teacher, TimeSlot
+
+    entries_result = await db.execute(
+        select(ScheduleEntry)
+        .where(ScheduleEntry.schedule_id == schedule_id)
+        .options(
+            selectinload(ScheduleEntry.lesson),
+            selectinload(ScheduleEntry.teacher),
+            selectinload(ScheduleEntry.class_group),
+            selectinload(ScheduleEntry.study_group),
+            selectinload(ScheduleEntry.room),
+            selectinload(ScheduleEntry.time_slot),
+        )
+    )
+    entries = entries_result.scalars().all()
+
+    if not entries:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Schedule has no entries"
+        )
+
+    # Build dictionaries for quick access
+    time_slots = {entry.time_slot_id: entry.time_slot for entry in entries}
+    lessons = {entry.lesson_id: entry.lesson for entry in entries}
+    teachers = {entry.teacher_id: entry.teacher for entry in entries}
+    class_groups = {
+        entry.class_group_id: entry.class_group
+        for entry in entries
+        if entry.class_group_id and entry.class_group
+    }
+    study_groups = {
+        entry.study_group_id: entry.study_group
+        for entry in entries
+        if entry.study_group_id and entry.study_group
+    }
+    rooms = {entry.room_id: entry.room for entry in entries}
+
+    # Generate PDF
+    exporter = PDFScheduleExporter()
+    pdf_buffer = exporter.export_schedule(
+        schedule_name=schedule.name,
+        entries=entries,
+        time_slots=time_slots,
+        lessons=lessons,
+        teachers=teachers,
+        class_groups=class_groups,
+        study_groups=study_groups,
+        rooms=rooms,
+    )
+
+    # Read PDF bytes
+    pdf_bytes = pdf_buffer.read()
+
+    # Upload to S3
+    object_key = f"schedules/{schedule_id}/schedule_{schedule_id}.pdf"
+    await s3_storage.upload_bytes(
+        pdf_bytes,
+        object_key,
+        content_type="application/pdf",
+        metadata={
+            "schedule_id": str(schedule_id),
+            "schedule_name": schedule.name,
+            "user_id": str(current_user.id),
+        },
+    )
+
+    # Generate pre-signed URL (valid for 1 hour)
+    pre_signed_url = await s3_storage.get_file_url(object_key, expires_in=3600)
+
+    return {
+        "url": pre_signed_url,
+        "filename": f"schedule_{schedule_id}.pdf",
+    }
