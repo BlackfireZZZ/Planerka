@@ -3,9 +3,6 @@ from typing import Any, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
-
-
-# Request schemas
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=128)
@@ -55,9 +52,6 @@ class PasswordResetRequest(BaseModel):
         if not any(c.isdigit() for c in v):
             raise ValueError("Password must contain at least one digit")
         return v
-
-
-# Response schemas
 class UserResponse(BaseModel):
     id: UUID
     email: str
@@ -74,7 +68,6 @@ class UserResponse(BaseModel):
             if "email_is_verified" in data and "email_verified" not in data:
                 data["email_verified"] = data.pop("email_is_verified")
         elif hasattr(data, "email_is_verified"):
-            # For SQLAlchemy models
             data_dict = {
                 "id": data.id,
                 "email": data.email,

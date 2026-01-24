@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 class TimeSlotCreate(BaseModel):
     """Schema for creating a time slot."""
 
-    day_of_week: int = Field(..., ge=0, le=6)  # 0 = Monday, 6 = Sunday
+    day_of_week: int = Field(..., ge=0, le=6)
     start_time: time
     end_time: time
     slot_number: int = Field(..., ge=0)

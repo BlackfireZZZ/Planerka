@@ -13,8 +13,6 @@ from . import (
     teachers,
     time_slots,
 )
-
-# Routes are imported directly in main.py
 __all__ = [
     "auth",
     "class_groups",

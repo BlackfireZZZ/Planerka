@@ -10,7 +10,6 @@ router = APIRouter()
 @router.get("/ping", tags=["Health"])
 async def ping(db: AsyncSession = Depends(get_db_session)):
     """Health check endpoint with database connection test."""
-    # Example of an async database  operation
     result = await db.execute(text("SELECT version()"))
     db_version = result.scalar()
 

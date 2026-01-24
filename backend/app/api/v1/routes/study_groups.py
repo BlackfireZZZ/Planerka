@@ -45,8 +45,6 @@ async def verify_students_in_stream(
     """Verify that all students belong to class groups in the stream."""
     from app.db.models.class_group import ClassGroup
     from app.db.models.stream import stream_class_group
-    
-    # Get class groups in the stream
     result = await db.execute(
         select(ClassGroup.id)
         .join(stream_class_group)
@@ -59,8 +57,6 @@ async def verify_students_in_stream(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Stream has no class groups",
         )
-    
-    # Verify all students belong to class groups in the stream
     result = await db.execute(
         select(Student).where(
             Student.id.in_(student_ids),
@@ -85,8 +81,6 @@ async def create_study_group(
 ) -> StudyGroupResponse:
     """Create a new study group."""
     await verify_institution_access(institution_id, current_user, db)
-    
-    # Verify stream belongs to institution
     result = await db.execute(
         select(Stream).where(
             Stream.id == data.stream_id, Stream.institution_id == institution_id
@@ -97,8 +91,6 @@ async def create_study_group(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Stream not found"
         )
-    
-    # Verify students belong to class groups in the stream
     if data.student_ids:
         await verify_students_in_stream(
             data.student_ids, data.stream_id, institution_id, db
@@ -112,8 +104,6 @@ async def create_study_group(
     )
     db.add(study_group)
     await db.flush()
-    
-    # Add students to study group
     if data.student_ids:
         for student_id in data.student_ids:
             await db.execute(
@@ -124,8 +114,6 @@ async def create_study_group(
     
     await db.commit()
     await db.refresh(study_group)
-    
-    # Load students for response
     result = await db.execute(
         select(Student)
         .join(study_group_student)
@@ -207,8 +195,6 @@ async def get_study_group(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Study group not found"
         )
-    
-    # Load students
     result = await db.execute(
         select(Student)
         .join(study_group_student)
@@ -254,7 +240,6 @@ async def update_study_group(
         study_group.name = data.name
     
     if data.stream_id is not None:
-        # Verify new stream belongs to institution
         result = await db.execute(
             select(Stream).where(
                 Stream.id == data.stream_id,
@@ -267,24 +252,17 @@ async def update_study_group(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Stream not found"
             )
         study_group.stream_id = data.stream_id
-    
-    # Update students if provided
     if data.student_ids is not None:
-        # Verify students belong to class groups in the stream
         stream_id = data.stream_id or study_group.stream_id
         if data.student_ids:
             await verify_students_in_stream(
                 data.student_ids, stream_id, study_group.institution_id, db
             )
-        
-        # Remove existing associations
         await db.execute(
             study_group_student.delete().where(
                 study_group_student.c.study_group_id == study_group.id
             )
         )
-        
-        # Add new associations
         if data.student_ids:
             for student_id in data.student_ids:
                 await db.execute(
@@ -295,8 +273,6 @@ async def update_study_group(
     
     await db.commit()
     await db.refresh(study_group)
-    
-    # Load students for response
     result = await db.execute(
         select(Student)
         .join(study_group_student)

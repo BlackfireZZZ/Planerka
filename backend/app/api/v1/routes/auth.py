@@ -53,7 +53,6 @@ async def register(
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     """Register a new user."""
-    # Check if user already exists
     result = await db.execute(select(User).where(User.email == request.email))
     existing_user = result.scalar_one_or_none()
 
@@ -62,8 +61,6 @@ async def register(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered",
         )
-
-    # Create new user
     user = User(
         id=uuid4(),
         email=request.email,
@@ -74,8 +71,6 @@ async def register(
 
     db.add(user)
     await db.flush()
-
-    # Create email verification token
     verification_token = generate_email_verification_token()
     expires_at = datetime.now(timezone.utc) + timedelta(
         hours=settings.EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS
@@ -92,13 +87,10 @@ async def register(
     await db.commit()
 
     logger.info(f"User registered: {user.email}")
-
-    # Send verification email with token
     try:
         await email_service.send_verification_email(user.email, verification_token)
     except Exception as e:
         logger.error(f"Failed to send verification email: {e}")
-        # We still return success, but log the error
 
     logger.info(f"Email verification token for {user.email}: {verification_token}")
 
@@ -130,8 +122,6 @@ async def verify_email(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Verification token has expired",
         )
-
-    # Mark token as used and verify user email
     token_record.used_at = datetime.now(timezone.utc)
     token_record.user.email_is_verified = True
 
@@ -144,7 +134,7 @@ async def verify_email(
 
 @router.post("/verify-email/resend", status_code=status.HTTP_200_OK)
 async def resend_verification_email(
-    request: PasswordForgotRequest,  # Reusing this schema as it only has email
+    request: PasswordForgotRequest,
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     """Resend email verification token."""
@@ -152,7 +142,6 @@ async def resend_verification_email(
     user = result.scalar_one_or_none()
 
     if not user:
-        # Don't reveal if user exists
         return {
             "message": "If the email exists and is not verified, a verification link has been sent."
         }
@@ -161,8 +150,6 @@ async def resend_verification_email(
         return {
             "message": "If the email exists and is not verified, a verification link has been sent."
         }
-
-    # Check for existing valid token
     result = await db.execute(
         select(EmailVerificationToken).where(
             EmailVerificationToken.user_id == user.id,
@@ -175,7 +162,6 @@ async def resend_verification_email(
     if existing_token:
         verification_token = existing_token.token
     else:
-        # Create new token
         verification_token = generate_email_verification_token()
         expires_at = datetime.now(timezone.utc) + timedelta(
             hours=settings.EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS
@@ -190,8 +176,6 @@ async def resend_verification_email(
 
         db.add(email_token)
         await db.commit()
-
-    # Send email
     try:
         await email_service.send_verification_email(user.email, verification_token)
     except Exception as e:
@@ -213,10 +197,7 @@ async def login(
     redis_client: RedisCache = Depends(get_redis_client),
 ) -> LoginResponse:
     """Login user and set authentication cookies."""
-    # Rate limiting
     await check_login_rate_limit(redis_client, http_request, request.email)
-
-    # Find user
     result = await db.execute(select(User).where(User.email == request.email))
     user = result.scalar_one_or_none()
 
@@ -231,8 +212,6 @@ async def login(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is inactive",
         )
-
-    # Create session
     session_id = uuid4()
     refresh_token_random = generate_refresh_token_value()
     refresh_token_value = create_refresh_token(session_id, refresh_token_random)
@@ -253,20 +232,14 @@ async def login(
 
     db.add(session)
     await db.commit()
-
-    # Create access token
     access_token = create_access_token(
         user_id=user.id,
         email=user.email,
         roles=user.roles,
         jti=session_id,
     )
-
-    # Set cookies
     set_access_token_cookie(response, access_token)
     set_refresh_token_cookie(response, refresh_token_value)
-
-    # Generate and set CSRF token
     csrf_token = generate_csrf_token()
     set_csrf_token_cookie(response, csrf_token)
 
@@ -282,12 +255,8 @@ async def refresh_token(
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     """Refresh access token with refresh token rotation."""
-    session, _ = session_data  # Hash already verified in dependency
-
-    # Update last_used_at for current session
+    session, _ = session_data
     session.last_used_at = datetime.now(timezone.utc)
-
-    # Create new session (rotation)
     new_session_id = uuid4()
     new_refresh_token_random = generate_refresh_token_value()
     new_refresh_token_value = create_refresh_token(
@@ -298,8 +267,6 @@ async def refresh_token(
     expires_at = datetime.now(timezone.utc) + timedelta(
         days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS
     )
-
-    # Update session (mark old as revoked and create new)
     session.revoked_at = datetime.now(timezone.utc)
 
     new_session = Session(
@@ -314,20 +281,14 @@ async def refresh_token(
 
     db.add(new_session)
     await db.commit()
-
-    # Get user for access token
     result = await db.execute(select(User).where(User.id == session.user_id))
     user = result.scalar_one()
-
-    # Create new access token
     access_token = create_access_token(
         user_id=user.id,
         email=user.email,
         roles=user.roles,
         jti=new_session_id,
     )
-
-    # Set new cookies
     set_access_token_cookie(response, access_token)
     set_refresh_token_cookie(response, new_refresh_token_value)
 
@@ -344,11 +305,8 @@ async def logout(
 ) -> None:
     """Logout user and revoke session."""
     session, _ = session_data
-    # Revoke session
     session.revoked_at = datetime.now(timezone.utc)
     await db.commit()
-
-    # Delete cookies
     delete_auth_cookies(response)
 
     logger.info(f"User logged out: session {session.id}")
@@ -421,12 +379,8 @@ async def forgot_password(
     """Request password reset."""
     result = await db.execute(select(User).where(User.email == request.email))
     user = result.scalar_one_or_none()
-
-    # Don't reveal if user exists (security best practice)
     if not user:
         return {"message": "If the email exists, a password reset link has been sent."}
-
-    # Create password reset token
     reset_token = generate_password_reset_token()
     expires_at = datetime.now(timezone.utc) + timedelta(
         hours=settings.PASSWORD_RESET_TOKEN_EXPIRE_HOURS
@@ -443,13 +397,10 @@ async def forgot_password(
     await db.commit()
 
     logger.info(f"Password reset requested for: {user.email}")
-
-    # Send password reset email
     try:
         await email_service.send_password_reset_email(user.email, reset_token)
     except Exception as e:
         logger.error(f"Failed to send password reset email: {e}")
-        # We still return success to avoid enumeration, but log the error
 
     logger.info(f"Password reset token for {user.email}: {reset_token}")
 
@@ -481,12 +432,8 @@ async def reset_password(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Reset token has expired",
         )
-
-    # Update password
     token_record.user.hashed_password = hash_password(request.new_password)
     token_record.used_at = datetime.now(timezone.utc)
-
-    # Revoke all sessions (force re-login)
     sessions_result = await db.execute(
         select(Session).where(
             Session.user_id == token_record.user_id,

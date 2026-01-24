@@ -156,7 +156,6 @@ async def assign_lessons_to_teacher(
     db: AsyncSession = Depends(get_db_session),
 ) -> list[TeacherLessonResponse]:
     """Assign lessons to teacher."""
-    # Verify access to teacher
     result = await db.execute(
         select(Teacher)
         .join(Institution)
@@ -167,8 +166,6 @@ async def assign_lessons_to_teacher(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Teacher not found"
         )
-
-    # Verify that all lessons belong to the same institution
     result = await db.execute(
         select(Lesson).where(
             Lesson.id.in_(data.lesson_ids),
@@ -181,15 +178,11 @@ async def assign_lessons_to_teacher(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Some lessons not found or belong to different institution",
         )
-
-    # Remove existing associations
     existing = await db.execute(
         select(TeacherLesson).where(TeacherLesson.teacher_id == teacher_id)
     )
     for existing_assignment in existing.scalars().all():
         await db.delete(existing_assignment)
-
-    # Create new associations
     assignments = []
     for lesson_id in data.lesson_ids:
         assignment = TeacherLesson(

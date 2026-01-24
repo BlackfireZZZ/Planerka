@@ -43,8 +43,6 @@ async def create_stream(
 ) -> StreamResponse:
     """Create a new stream."""
     await verify_institution_access(institution_id, current_user, db)
-    
-    # Verify all class groups belong to the institution
     if data.class_group_ids:
         result = await db.execute(
             select(ClassGroup).where(
@@ -66,8 +64,6 @@ async def create_stream(
     )
     db.add(stream)
     await db.flush()
-    
-    # Add class groups to stream
     if data.class_group_ids:
         for class_group_id in data.class_group_ids:
             await db.execute(
@@ -78,8 +74,6 @@ async def create_stream(
     
     await db.commit()
     await db.refresh(stream)
-    
-    # Load class groups for response
     result = await db.execute(
         select(ClassGroup)
         .join(stream_class_group)
@@ -153,8 +147,6 @@ async def get_stream(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Stream not found"
         )
-    
-    # Load class groups
     result = await db.execute(
         select(ClassGroup)
         .join(stream_class_group)
@@ -196,10 +188,7 @@ async def update_stream(
     
     if data.name is not None:
         stream.name = data.name
-    
-    # Update class groups if provided
     if data.class_group_ids is not None:
-        # Verify all class groups belong to the institution
         if data.class_group_ids:
             result = await db.execute(
                 select(ClassGroup).where(
@@ -213,15 +202,11 @@ async def update_stream(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Some class groups not found or don't belong to this institution",
                 )
-        
-        # Remove existing associations
         await db.execute(
             stream_class_group.delete().where(
                 stream_class_group.c.stream_id == stream.id
             )
         )
-        
-        # Add new associations
         if data.class_group_ids:
             for class_group_id in data.class_group_ids:
                 await db.execute(
@@ -232,8 +217,6 @@ async def update_stream(
     
     await db.commit()
     await db.refresh(stream)
-    
-    # Load class groups for response
     result = await db.execute(
         select(ClassGroup)
         .join(stream_class_group)

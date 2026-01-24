@@ -39,7 +39,6 @@ async def create_schedule(
     db: AsyncSession = Depends(get_db_session),
 ) -> ScheduleResponse:
     """Create a new schedule."""
-    # Verify that the institution belongs to the user
     result = await db.execute(
         select(Institution).where(
             Institution.id == institution_id, Institution.user_id == current_user.id
@@ -71,7 +70,6 @@ async def list_schedules(
     db: AsyncSession = Depends(get_db_session),
 ) -> list[ScheduleResponse]:
     """Get list of institution schedules."""
-    # Verify that the institution belongs to the user
     result = await db.execute(
         select(Institution).where(
             Institution.id == institution_id, Institution.user_id == current_user.id
@@ -107,8 +105,6 @@ async def get_schedule(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found"
         )
-
-    # Load schedule entries
     entries_result = await db.execute(
         select(ScheduleEntry).where(ScheduleEntry.schedule_id == schedule_id)
     )
@@ -129,7 +125,6 @@ async def generate_schedule(
     db: AsyncSession = Depends(get_db_session),
 ) -> ScheduleGenerateResponse:
     """Generate schedule using SAT solver."""
-    # Verify that the schedule belongs to the user
     result = await db.execute(
         select(Schedule)
         .join(Institution)
@@ -140,8 +135,6 @@ async def generate_schedule(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found"
         )
-
-    # Generate schedule
     generator = ScheduleGenerator(db)
     success, schedule_entries, error = await generator.generate(
         schedule.institution_id, timeout=request.timeout
@@ -151,16 +144,12 @@ async def generate_schedule(
         return ScheduleGenerateResponse(
             success=False, message=error or "Generation failed", entries_count=None
         )
-
-    # Remove old schedule entries
     result = await db.execute(
         select(ScheduleEntry).where(ScheduleEntry.schedule_id == schedule_id)
     )
     old_entries = result.scalars().all()
     for entry in old_entries:
         await db.delete(entry)
-
-    # Create new entries
     for entry_data in schedule_entries:
         entry = ScheduleEntry(
             id=uuid4(),
@@ -174,8 +163,6 @@ async def generate_schedule(
             time_slot_id=entry_data["time_slot_id"],
         )
         db.add(entry)
-
-    # Update schedule status
     schedule.status = "generated"
     schedule.generated_at = datetime.now(timezone.utc)
 
@@ -249,7 +236,6 @@ async def export_schedule_pdf(
     s3_storage=Depends(get_s3_client),
 ) -> dict:
     """Export schedule to PDF and upload to S3, return pre-signed URL."""
-    # Verify access
     result = await db.execute(
         select(Schedule)
         .join(Institution)
@@ -260,8 +246,6 @@ async def export_schedule_pdf(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found"
         )
-
-    # Load entries and related data
     from sqlalchemy.orm import selectinload
 
     from app.db.models import ClassGroup, Lesson, Room, Teacher, TimeSlot
@@ -284,8 +268,6 @@ async def export_schedule_pdf(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Schedule has no entries"
         )
-
-    # Build dictionaries for quick access
     time_slots = {entry.time_slot_id: entry.time_slot for entry in entries}
     lessons = {entry.lesson_id: entry.lesson for entry in entries}
     teachers = {entry.teacher_id: entry.teacher for entry in entries}
@@ -300,8 +282,6 @@ async def export_schedule_pdf(
         if entry.study_group_id and entry.study_group
     }
     rooms = {entry.room_id: entry.room for entry in entries}
-
-    # Generate PDF
     exporter = PDFScheduleExporter()
     pdf_buffer = exporter.export_schedule(
         schedule_name=schedule.name,
@@ -313,11 +293,7 @@ async def export_schedule_pdf(
         study_groups=study_groups,
         rooms=rooms,
     )
-
-    # Read PDF bytes
     pdf_bytes = pdf_buffer.read()
-
-    # Upload to S3
     object_key = f"schedules/{schedule_id}/schedule_{schedule_id}.pdf"
     await s3_storage.upload_bytes(
         pdf_bytes,
@@ -329,8 +305,6 @@ async def export_schedule_pdf(
             "user_id": str(current_user.id),
         },
     )
-
-    # Generate pre-signed URL (valid for 1 hour)
     pre_signed_url = await s3_storage.get_file_url(object_key, expires_in=3600)
 
     return {
