@@ -8,14 +8,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.schemas.study_group import (
     StudyGroupCreate,
+    StudyGroupLessonAssign,
+    StudyGroupLessonLink,
     StudyGroupResponse,
     StudyGroupUpdate,
 )
 from app.core.dependencies import get_current_user
 from app.db.models.institution import Institution
+from app.db.models.lesson import Lesson
 from app.db.models.student import Student
 from app.db.models.stream import Stream
-from app.db.models.study_group import StudyGroup, study_group_student
+from app.db.models.study_group import StudyGroup, study_group_lessons, study_group_student
 from app.db.models.user import User
 from app.db.session import get_db_session
 
@@ -314,3 +317,87 @@ async def delete_study_group(
         )
     await db.delete(study_group)
     await db.commit()
+
+
+@router.post(
+    "/{study_group_id}/assign-lessons",
+    status_code=status.HTTP_201_CREATED,
+    response_model=list[StudyGroupLessonLink],
+)
+async def assign_lessons_to_study_group(
+    study_group_id: UUID,
+    data: StudyGroupLessonAssign,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[StudyGroupLessonLink]:
+    """Assign lessons to a study group."""
+    result = await db.execute(
+        select(StudyGroup)
+        .join(Institution)
+        .where(
+            StudyGroup.id == study_group_id, Institution.user_id == current_user.id
+        )
+    )
+    study_group = result.scalar_one_or_none()
+    if not study_group:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Study group not found"
+        )
+    if data.lesson_ids:
+        lessons_result = await db.execute(
+            select(Lesson).where(
+                Lesson.id.in_(data.lesson_ids),
+                Lesson.institution_id == study_group.institution_id,
+            )
+        )
+        lessons = lessons_result.scalars().all()
+        if len(lessons) != len(data.lesson_ids):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Some lessons not found or belong to different institution",
+            )
+    await db.execute(
+        study_group_lessons.delete().where(
+            study_group_lessons.c.study_group_id == study_group_id
+        )
+    )
+    for lesson_id in data.lesson_ids:
+        await db.execute(
+            study_group_lessons.insert().values(
+                study_group_id=study_group_id, lesson_id=lesson_id
+            )
+        )
+    await db.commit()
+    return [StudyGroupLessonLink(lesson_id=lid) for lid in data.lesson_ids]
+
+
+@router.get(
+    "/{study_group_id}/lessons", response_model=list[StudyGroupLessonLink]
+)
+async def get_study_group_lessons(
+    study_group_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[StudyGroupLessonLink]:
+    """Get list of lessons assigned to a study group."""
+    result = await db.execute(
+        select(StudyGroup)
+        .join(Institution)
+        .where(
+            StudyGroup.id == study_group_id, Institution.user_id == current_user.id
+        )
+    )
+    study_group = result.scalar_one_or_none()
+    if not study_group:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Study group not found"
+        )
+    lessons_result = await db.execute(
+        select(study_group_lessons.c.lesson_id).where(
+            study_group_lessons.c.study_group_id == study_group_id
+        )
+    )
+    return [
+        StudyGroupLessonLink(lesson_id=row.lesson_id)
+        for row in lessons_result.all()
+    ]

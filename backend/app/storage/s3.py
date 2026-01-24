@@ -2,15 +2,32 @@
 Module for working with S3-compatible storage (e.g., MinIO).
 """
 
+import base64
 import io
 from contextlib import asynccontextmanager
-from typing import BinaryIO, Optional
+from typing import Any, BinaryIO, Optional
 
 import aioboto3
 from botocore.exceptions import ClientError
 
 from app.core.config import settings
 from app.core.logger import logger
+
+
+def _metadata_value_to_ascii(val: Any) -> str:
+    """
+    Convert metadata value to ASCII-only string. S3 metadata allows only ASCII.
+    Non-ASCII strings are base64-encoded (UTF-8) with 'b64:' prefix.
+    """
+    s = str(val) if not isinstance(val, str) else val
+    if s.isascii():
+        return s
+    return "b64:" + base64.b64encode(s.encode("utf-8")).decode("ascii")
+
+
+def _sanitize_metadata(metadata: dict[str, Any]) -> dict[str, str]:
+    """Ensure all metadata values are ASCII-only (required by S3)."""
+    return {k: _metadata_value_to_ascii(v) for k, v in metadata.items()}
 
 
 class S3Storage:
@@ -81,7 +98,7 @@ class S3Storage:
         if content_type:
             extra_args["ContentType"] = content_type
         if metadata:
-            extra_args["Metadata"] = metadata
+            extra_args["Metadata"] = _sanitize_metadata(metadata)
 
         async with self.get_client() as client:
             await client.upload_fileobj(

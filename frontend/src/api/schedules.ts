@@ -25,6 +25,7 @@ export interface Schedule {
   created_at: string;
   updated_at: string;
   entries: ScheduleEntry[];
+  entries_count?: number;
 }
 
 export interface ScheduleCreate {
@@ -74,6 +75,23 @@ export const schedulesApi = {
 
   get: async (id: string): Promise<Schedule> => {
     const response = await apiClient.get<Schedule>(`/api/v1/schedules/${id}`);
+    return response.data;
+  },
+
+  /** Расписание + все справочники одним запросом (вместо 8 вызовов). */
+  getWithReferences: async (
+    id: string,
+  ): Promise<{
+    schedule: Schedule;
+    time_slots: import("./timeSlots").TimeSlot[];
+    lessons: import("./lessons").Lesson[];
+    teachers: import("./teachers").Teacher[];
+    rooms: import("./rooms").Room[];
+    class_groups: import("./classGroups").ClassGroup[];
+    study_groups: import("./studyGroups").StudyGroup[];
+    students: import("./students").Student[];
+  }> => {
+    const response = await apiClient.get(`/api/v1/schedules/${id}/with-references`);
     return response.data;
   },
 

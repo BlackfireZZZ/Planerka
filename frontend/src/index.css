@@ -110,6 +110,34 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Elegant thin scrollbar for horizontally scrollable tab bars */
+.tabs-list-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.75 0 0 / 40%) transparent;
+}
+.tabs-list-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+.tabs-list-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.tabs-list-scroll::-webkit-scrollbar-thumb {
+  background: oklch(0.75 0 0 / 40%);
+  border-radius: 3px;
+}
+.tabs-list-scroll::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.65 0 0 / 55%);
+}
+.dark .tabs-list-scroll {
+  scrollbar-color: oklch(0.5 0 0 / 50%) transparent;
+}
+.dark .tabs-list-scroll::-webkit-scrollbar-thumb {
+  background: oklch(0.5 0 0 / 50%);
+}
+.dark .tabs-list-scroll::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.6 0 0 / 60%);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

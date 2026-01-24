@@ -47,12 +47,46 @@ class ScheduleGenerator:
         }
         if not teachers_with_lessons:
             return False, "No teachers have assigned lessons"
-        min_required_slots = len(data["lessons"])
-        if len(data["time_slots"]) < min_required_slots:
+
+        class_group_lessons = data.get("class_group_lessons", {})
+        study_group_lessons = data.get("study_group_lessons", {})
+        total_pairs = sum(len(s) for s in class_group_lessons.values()) + sum(
+            len(s) for s in study_group_lessons.values()
+        )
+        if total_pairs == 0:
             return (
                 False,
-                f"Not enough time slots. Required: {min_required_slots}, Available: {len(data['time_slots'])}",
+                "No lesson–group assignments. Assign lessons to class groups and/or "
+                "study groups in the Group Lessons tab.",
             )
+        at_least_one_teachable = False
+        for cg_id, lesson_ids in class_group_lessons.items():
+            for lid in lesson_ids:
+                if any(lid in data["teacher_lessons"].get(tid, set()) for tid in teachers_with_lessons):
+                    at_least_one_teachable = True
+                    break
+            if at_least_one_teachable:
+                break
+        if not at_least_one_teachable:
+            for sg_id, lesson_ids in study_group_lessons.items():
+                for lid in lesson_ids:
+                    if any(lid in data["teacher_lessons"].get(tid, set()) for tid in teachers_with_lessons):
+                        at_least_one_teachable = True
+                        break
+                if at_least_one_teachable:
+                    break
+        if not at_least_one_teachable:
+            return (
+                False,
+                "No lesson–group assignments with an assigned teacher. Assign lessons to "
+                "class groups and/or study groups in the Group Lessons tab, and ensure "
+                "those lessons are assigned to at least one teacher.",
+            )
+
+        # Multiple (lesson, group) pairs can share a time slot when there is no
+        # resource conflict (different teacher, room, no student overlap).
+        # So we only require at least one time slot; "No time slots" is checked above.
+        # We do not require time_slots >= total_pairs.
 
         return True, None
 
@@ -84,6 +118,8 @@ class ScheduleGenerator:
         data = await self.constraint_builder.build_from_institution(institution_id)
         encoder = ScheduleEncoder()
         study_groups = data.get("study_groups", [])
+        class_group_lessons = data.get("class_group_lessons", {})
+        study_group_lessons = data.get("study_group_lessons", {})
         encoder.encode_variables(
             lessons=data["lessons"],
             teachers=data["teachers"],
@@ -92,7 +128,19 @@ class ScheduleGenerator:
             rooms=data["rooms"],
             time_slots=data["time_slots"],
             teacher_lessons=data["teacher_lessons"],
+            class_group_lessons=class_group_lessons,
+            study_group_lessons=study_group_lessons,
         )
+        infeasible = encoder.get_infeasible_pairs(
+            class_group_lessons=class_group_lessons,
+            study_group_lessons=study_group_lessons,
+            room_capacities=data["room_capacities"],
+            class_group_sizes=data["class_group_sizes"],
+            study_group_sizes=data.get("study_group_sizes", {}),
+        )
+        if infeasible:
+            parts = [f"lesson {l} group {g}: {r}" for l, g, r in infeasible]
+            return False, None, "Infeasible: " + "; ".join(parts)
         encoder.encode_hard_constraints(
             lessons=data["lessons"],
             class_groups=data["class_groups"],
@@ -104,6 +152,8 @@ class ScheduleGenerator:
             class_group_sizes=data["class_group_sizes"],
             study_group_sizes=data.get("study_group_sizes", {}),
             student_group_memberships=data.get("student_group_memberships", {}),
+            class_group_lessons=class_group_lessons,
+            study_group_lessons=study_group_lessons,
         )
         encoder.encode_custom_constraints(data["constraints"])
         with ScheduleSolver(encoder) as solver:
@@ -135,11 +185,53 @@ class ScheduleGenerator:
 
                 return True, schedule_entries, None
             else:
-                return (
-                    False,
-                    None,
-                    "No solution found. Constraints may be too restrictive.",
+                # Diagnostic: can assignments be made without pairwise conflicts?
+                diag = ScheduleEncoder()
+                diag.encode_variables(
+                    lessons=data["lessons"],
+                    teachers=data["teachers"],
+                    class_groups=data["class_groups"],
+                    study_groups=study_groups,
+                    rooms=data["rooms"],
+                    time_slots=data["time_slots"],
+                    teacher_lessons=data["teacher_lessons"],
+                    class_group_lessons=class_group_lessons,
+                    study_group_lessons=study_group_lessons,
                 )
+                diag.encode_hard_constraints(
+                    lessons=data["lessons"],
+                    class_groups=data["class_groups"],
+                    study_groups=study_groups,
+                    teachers=data["teachers"],
+                    rooms=data["rooms"],
+                    time_slots=data["time_slots"],
+                    room_capacities=data["room_capacities"],
+                    class_group_sizes=data["class_group_sizes"],
+                    study_group_sizes=data.get("study_group_sizes", {}),
+                    student_group_memberships=data.get("student_group_memberships", {}),
+                    class_group_lessons=class_group_lessons,
+                    study_group_lessons=study_group_lessons,
+                    skip_conflicts=True,
+                )
+                diag.encode_custom_constraints(data["constraints"])
+                with ScheduleSolver(diag) as diag_solver:
+                    if diag_solver.solve(timeout=timeout):
+                        return (
+                            False,
+                            None,
+                            "No solution: resource conflicts make the schedule impossible "
+                            "(teacher, room, or student overlap in at least one time slot). "
+                            "Try: more time slots, more teachers, or more rooms.",
+                        )
+                    else:
+                        return (
+                            False,
+                            None,
+                            "No solution: some (lesson, group) pairs have no valid "
+                            "(teacher, room, time slot) after room capacity and "
+                            "teacher/room unavailability. Check room capacity and "
+                            "teacher/room availability constraints.",
+                        )
 
     async def apply_constraints(
         self, institution_id: UUID, constraints: List[Dict]

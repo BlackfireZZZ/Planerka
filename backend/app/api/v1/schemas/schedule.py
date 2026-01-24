@@ -62,6 +62,7 @@ class ScheduleResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     entries: List[ScheduleEntryResponse] = []
+    entries_count: int | None = None  # для списка, когда entries не грузятся
 
     class Config:
         from_attributes = True

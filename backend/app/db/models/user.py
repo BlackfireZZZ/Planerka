@@ -19,23 +19,23 @@ class User(Base):
     is_active = Column(String, default="active")
     roles = Column(ARRAY(String), default=[], nullable=False)
     sessions = relationship(
-        "Session", back_populates="user", cascade="all, delete-orphan", lazy="selectin"
+        "Session", back_populates="user", cascade="all, delete-orphan", lazy="noload"
     )
     email_verification_tokens = relationship(
         "EmailVerificationToken",
         back_populates="user",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="noload",
     )
     password_reset_tokens = relationship(
         "PasswordResetToken",
         back_populates="user",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="noload",
     )
     institutions = relationship(
         "Institution",
         back_populates="user",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="noload",
     )

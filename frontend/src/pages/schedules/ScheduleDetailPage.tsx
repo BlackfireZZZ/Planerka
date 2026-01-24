@@ -12,15 +12,33 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { schedulesApi } from "@/api/schedules";
-import { timeSlotsApi } from "@/api/timeSlots";
-import type { Schedule, ScheduleGenerateRequest } from "@/api/schedules";
+import type { Schedule, ScheduleEntry, ScheduleGenerateRequest } from "@/api/schedules";
 import type { TimeSlot } from "@/api/timeSlots";
+import type { Lesson } from "@/api/lessons";
+import type { Teacher } from "@/api/teachers";
+import type { Room } from "@/api/rooms";
+import type { ClassGroup } from "@/api/classGroups";
+import type { StudyGroup } from "@/api/studyGroups";
+import type { Student } from "@/api/students";
 
 export const ScheduleDetailPage: React.FC = () => {
   const { scheduleId } = useParams<{ scheduleId: string }>();
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [classGroups, setClassGroups] = useState<ClassGroup[]>([]);
+  const [studyGroups, setStudyGroups] = useState<StudyGroup[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [selectedEntry, setSelectedEntry] = useState<ScheduleEntry | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
 
@@ -35,18 +53,15 @@ export const ScheduleDetailPage: React.FC = () => {
     if (!scheduleId) return;
     try {
       setLoading(true);
-      const data = await schedulesApi.get(scheduleId);
-      setSchedule(data);
-
-      // Загрузить временные слоты для фильтрации по дню недели
-      if (data.institution_id) {
-        try {
-          const slots = await timeSlotsApi.list(data.institution_id);
-          setTimeSlots(slots);
-        } catch (error) {
-          console.error("Failed to load time slots:", error);
-        }
-      }
+      const data = await schedulesApi.getWithReferences(scheduleId);
+      setSchedule(data.schedule);
+      setTimeSlots(data.time_slots);
+      setLessons(data.lessons);
+      setTeachers(data.teachers);
+      setRooms(data.rooms);
+      setClassGroups(data.class_groups);
+      setStudyGroups(data.study_groups);
+      setStudents(data.students);
     } catch (error) {
       console.error("Failed to load schedule:", error);
     } finally {
@@ -137,8 +152,12 @@ export const ScheduleDetailPage: React.FC = () => {
     "Воскресенье",
   ];
 
-  // Создать карту time_slot_id -> time_slot для быстрого поиска
   const timeSlotMap = new Map(timeSlots.map((ts) => [ts.id, ts]));
+  const lessonMap = new Map(lessons.map((l) => [l.id, l]));
+  const teacherMap = new Map(teachers.map((t) => [t.id, t]));
+  const roomMap = new Map(rooms.map((r) => [r.id, r]));
+  const classGroupMap = new Map(classGroups.map((cg) => [cg.id, cg]));
+  const studyGroupMap = new Map(studyGroups.map((sg) => [sg.id, sg]));
 
   return (
     <div className="p-8">
@@ -238,12 +257,26 @@ export const ScheduleDetailPage: React.FC = () => {
                     const timeSlot = timeSlotMap.get(entry.time_slot_id);
                     const timeStr = timeSlot
                       ? `${timeSlot.start_time.slice(0, 5)} - ${timeSlot.end_time.slice(0, 5)}`
-                      : entry.time_slot_id.slice(0, 8) + "...";
+                      : "—";
+                    const lesson = lessonMap.get(entry.lesson_id);
+                    const teacher = teacherMap.get(entry.teacher_id);
+                    const room = roomMap.get(entry.room_id);
+                    const groupName = entry.class_group_id
+                      ? classGroupMap.get(entry.class_group_id)?.name
+                      : entry.study_group_id
+                        ? studyGroupMap.get(entry.study_group_id)?.name
+                        : null;
 
                     return (
                       <div
                         key={entry.id}
-                        className="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setSelectedEntry(entry)}
+                        onKeyDown={(e) =>
+                          e.key === "Enter" && setSelectedEntry(entry)
+                        }
+                        className="border rounded-lg p-4 hover:bg-muted/50 transition-colors cursor-pointer"
                       >
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                           <div className="flex items-center gap-2">
@@ -261,9 +294,7 @@ export const ScheduleDetailPage: React.FC = () => {
                               <p className="text-sm text-muted-foreground">
                                 Урок
                               </p>
-                              <p className="font-medium">
-                                {entry.lesson_id.slice(0, 8)}...
-                              </p>
+                              <p className="font-medium">{lesson?.name ?? "—"}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
@@ -276,13 +307,7 @@ export const ScheduleDetailPage: React.FC = () => {
                                     ? "Учебная группа"
                                     : "Группа"}
                               </p>
-                              <p className="font-medium">
-                                {entry.class_group_id
-                                  ? `${entry.class_group_id.slice(0, 8)}...`
-                                  : entry.study_group_id
-                                    ? `${entry.study_group_id.slice(0, 8)}... (Учебная)`
-                                    : "Н/Д"}
-                              </p>
+                              <p className="font-medium">{groupName ?? "—"}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
@@ -291,15 +316,13 @@ export const ScheduleDetailPage: React.FC = () => {
                               <p className="text-sm text-muted-foreground">
                                 Аудитория
                               </p>
-                              <p className="font-medium">
-                                {entry.room_id.slice(0, 8)}...
-                              </p>
+                              <p className="font-medium">{room?.name ?? "—"}</p>
                             </div>
                           </div>
                         </div>
                         <div className="mt-2 pt-2 border-t">
-                          <p className="text-xs text-muted-foreground">
-                            ID преподавателя: {entry.teacher_id}
+                          <p className="text-sm text-muted-foreground">
+                            Преподаватель: {teacher?.full_name ?? "—"}
                           </p>
                         </div>
                       </div>
@@ -324,6 +347,127 @@ export const ScheduleDetailPage: React.FC = () => {
           )}
         </Card>
       )}
+
+      <Dialog open={!!selectedEntry} onOpenChange={(o) => !o && setSelectedEntry(null)}>
+        <DialogContent className="max-w-lg">
+          {selectedEntry && (() => {
+            const ts = timeSlotMap.get(selectedEntry.time_slot_id);
+            const les = lessonMap.get(selectedEntry.lesson_id);
+            const tch = teacherMap.get(selectedEntry.teacher_id);
+            const rm = roomMap.get(selectedEntry.room_id);
+            const dayName = ts != null ? days[ts.day_of_week] : null;
+            const timeStr = ts
+              ? `${ts.start_time.slice(0, 5)} – ${ts.end_time.slice(0, 5)}`
+              : "—";
+            const isClass = !!selectedEntry.class_group_id;
+            const cg = selectedEntry.class_group_id
+              ? classGroupMap.get(selectedEntry.class_group_id)
+              : null;
+            const sg = selectedEntry.study_group_id
+              ? studyGroupMap.get(selectedEntry.study_group_id)
+              : null;
+            const groupStudents = isClass
+              ? students.filter((s) => s.class_group_id === selectedEntry.class_group_id)
+              : sg?.students ?? [];
+
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle>{les?.name ?? "Урок"}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 text-sm">
+                  <div className="flex items-start gap-2">
+                    <Clock className="h-4 w-4 text-muted-foreground mt-0.5" />
+                    <div>
+                      <p className="text-muted-foreground">Время</p>
+                      <p className="font-medium">
+                        {dayName && `${dayName}, `}{timeStr}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <BookOpen className="h-4 w-4 text-muted-foreground mt-0.5" />
+                    <div>
+                      <p className="text-muted-foreground">Урок</p>
+                      <p className="font-medium">{les?.name ?? "—"}</p>
+                      {(les?.subject_code || les?.duration_minutes) && (
+                        <p className="text-muted-foreground text-xs mt-0.5">
+                          {[
+                            les?.subject_code,
+                            les?.duration_minutes && `${les.duration_minutes} мин`,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Users className="h-4 w-4 text-muted-foreground mt-0.5" />
+                    <div>
+                      <p className="text-muted-foreground">Преподаватель</p>
+                      <p className="font-medium">{tch?.full_name ?? "—"}</p>
+                      {tch?.subject && (
+                        <p className="text-muted-foreground text-xs">{tch.subject}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                    <div>
+                      <p className="text-muted-foreground">Аудитория</p>
+                      <p className="font-medium">{rm?.name ?? "—"}</p>
+                      {(rm?.capacity != null || rm?.room_type) && (
+                        <p className="text-muted-foreground text-xs">
+                          {[rm?.room_type, rm?.capacity != null && `вместимость ${rm.capacity}`]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Users className="h-4 w-4 text-muted-foreground mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-muted-foreground">
+                        {isClass ? "Группа класса" : "Учебная группа"}
+                      </p>
+                      <p className="font-medium">
+                        {isClass ? cg?.name ?? "—" : sg?.name ?? "—"}
+                      </p>
+                      {isClass && cg != null && (
+                        <p className="text-muted-foreground text-xs">
+                          Учеников: {cg.student_count}
+                        </p>
+                      )}
+                      <p className="text-muted-foreground text-xs mt-2">Состав группы:</p>
+                      {groupStudents.length > 0 ? (
+                        <ul className="mt-1 space-y-0.5 text-xs max-h-32 overflow-y-auto">
+                          {groupStudents.map((s, i) => {
+                            const snap = s as { id?: string; full_name: string; student_number?: string | null };
+                            return (
+                              <li key={snap.id ?? `student-${i}`}>
+                                {snap.full_name}
+                                {snap.student_number && (
+                                  <span className="text-muted-foreground ml-1">
+                                    ({snap.student_number})
+                                  </span>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      ) : (
+                        <p className="text-muted-foreground text-xs mt-1">Нет данных</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

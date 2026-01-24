@@ -40,3 +40,15 @@ class Lesson(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+    class_groups = relationship(
+        "ClassGroup",
+        secondary="class_group_lessons",
+        back_populates="lessons",
+        lazy="selectin",
+    )
+    study_groups = relationship(
+        "StudyGroup",
+        secondary="study_group_lessons",
+        back_populates="lessons",
+        lazy="selectin",
+    )

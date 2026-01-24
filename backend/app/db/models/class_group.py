@@ -2,11 +2,28 @@
 ClassGroup model for storing class groups.
 """
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table, func
 from sqlalchemy.dialects.postgresql.base import UUID
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
+
+class_group_lessons = Table(
+    "class_group_lessons",
+    Base.metadata,
+    Column(
+        "class_group_id",
+        UUID(as_uuid=True),
+        ForeignKey("class_groups.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "lesson_id",
+        UUID(as_uuid=True),
+        ForeignKey("lessons.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+)
 
 
 class ClassGroup(Base):
@@ -44,6 +61,12 @@ class ClassGroup(Base):
     streams = relationship(
         "Stream",
         secondary="stream_class_groups",
+        back_populates="class_groups",
+        lazy="selectin",
+    )
+    lessons = relationship(
+        "Lesson",
+        secondary=class_group_lessons,
         back_populates="class_groups",
         lazy="selectin",
     )

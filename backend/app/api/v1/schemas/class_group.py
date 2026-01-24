@@ -34,3 +34,15 @@ class ClassGroupResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ClassGroupLessonAssign(BaseModel):
+    """Schema for assigning lessons to a class group."""
+
+    lesson_ids: list[UUID] = Field(default_factory=list, min_length=0)
+
+
+class ClassGroupLessonLink(BaseModel):
+    """Response schema for class group-lesson association."""
+
+    lesson_id: UUID

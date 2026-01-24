@@ -20,7 +20,8 @@ from app.db.models import (
     TeacherLesson,
     TimeSlot,
 )
-from app.db.models.study_group import study_group_student
+from app.db.models.class_group import class_group_lessons
+from app.db.models.study_group import study_group_lessons, study_group_student
 
 
 class ConstraintBuilder:
@@ -79,13 +80,15 @@ class ConstraintBuilder:
             select(TimeSlot).where(TimeSlot.institution_id == institution_id)
         )
         time_slots = time_slots_result.scalars().all()
-        teacher_lessons_dict: Dict[int, Set[UUID]] = {}
-        for teacher in teachers:
-            teacher_lessons_result = await self.db.execute(
-                select(TeacherLesson).where(TeacherLesson.teacher_id == teacher.id)
+        teacher_lessons_dict: Dict[int, Set[UUID]] = {t.id: set() for t in teachers}
+        if teachers:
+            tl_result = await self.db.execute(
+                select(TeacherLesson).where(
+                    TeacherLesson.teacher_id.in_([t.id for t in teachers])
+                )
             )
-            teacher_lessons = teacher_lessons_result.scalars().all()
-            teacher_lessons_dict[teacher.id] = {tl.lesson_id for tl in teacher_lessons}
+            for tl in tl_result.scalars().all():
+                teacher_lessons_dict[tl.teacher_id].add(tl.lesson_id)
         constraints_result = await self.db.execute(
             select(Constraint).where(Constraint.institution_id == institution_id)
         )
@@ -99,23 +102,59 @@ class ConstraintBuilder:
         study_group_sizes = {}
         student_group_memberships: Dict[UUID, Dict] = {}
 
-        for study_group in study_groups:
-            result = await self.db.execute(
-                select(Student)
-                .join(study_group_student)
-                .where(study_group_student.c.study_group_id == study_group.id)
-            )
-            students = result.scalars().all()
-            study_group_sizes[study_group.id] = len(students)
-            for student in students:
-                if student.id not in student_group_memberships:
-                    student_group_memberships[student.id] = {
-                        "class_group_id": student.class_group_id,
-                        "study_group_ids": [],
-                    }
-                student_group_memberships[student.id]["study_group_ids"].append(
-                    study_group.id
+        class_group_lessons_dict: Dict[UUID, Set[UUID]] = {}
+        if class_groups:
+            cg_lessons_result = await self.db.execute(
+                select(class_group_lessons).where(
+                    class_group_lessons.c.class_group_id.in_(
+                        [cg.id for cg in class_groups]
+                    )
                 )
+            )
+            for row in cg_lessons_result.all():
+                cg_id = row.class_group_id
+                if cg_id not in class_group_lessons_dict:
+                    class_group_lessons_dict[cg_id] = set()
+                class_group_lessons_dict[cg_id].add(row.lesson_id)
+
+        study_group_lessons_dict: Dict[UUID, Set[UUID]] = {}
+        if study_groups:
+            sg_lessons_result = await self.db.execute(
+                select(study_group_lessons).where(
+                    study_group_lessons.c.study_group_id.in_(
+                        [sg.id for sg in study_groups]
+                    )
+                )
+            )
+            for row in sg_lessons_result.all():
+                sgg_id = row.study_group_id
+                if sgg_id not in study_group_lessons_dict:
+                    study_group_lessons_dict[sgg_id] = set()
+                study_group_lessons_dict[sgg_id].add(row.lesson_id)
+
+        if study_groups:
+            sg_ids = [sg.id for sg in study_groups]
+            sg_students_result = await self.db.execute(
+                select(Student, study_group_student.c.study_group_id)
+                .select_from(Student)
+                .join(study_group_student, Student.id == study_group_student.c.student_id)
+                .where(study_group_student.c.study_group_id.in_(sg_ids))
+            )
+            sg_to_students: Dict[UUID, List[Student]] = {sg.id: [] for sg in study_groups}
+            for student, sg_id in sg_students_result.all():
+                sg_to_students[sg_id].append(student)
+            for sg in study_groups:
+                students = sg_to_students.get(sg.id, [])
+                study_group_sizes[sg.id] = len(students)
+                for student in students:
+                    if student.id not in student_group_memberships:
+                        student_group_memberships[student.id] = {
+                            "class_group_id": student.class_group_id,
+                            "study_group_ids": [],
+                        }
+                    student_group_memberships[student.id]["study_group_ids"].append(
+                        sg.id
+                    )
         constraints_list = []
         for constraint in constraints:
             constraints_list.append(
@@ -134,6 +173,8 @@ class ConstraintBuilder:
             "rooms": [room.id for room in rooms],
             "time_slots": [ts.id for ts in time_slots],
             "teacher_lessons": teacher_lessons_dict,
+            "class_group_lessons": class_group_lessons_dict,
+            "study_group_lessons": study_group_lessons_dict,
             "room_capacities": room_capacities,
             "class_group_sizes": class_group_sizes,
             "study_group_sizes": study_group_sizes,

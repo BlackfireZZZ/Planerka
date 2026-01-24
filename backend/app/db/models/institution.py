@@ -25,58 +25,58 @@ class Institution(Base):
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-    user = relationship("User", back_populates="institutions", lazy="selectin")
+    user = relationship("User", back_populates="institutions", lazy="noload")
     class_groups = relationship(
         "ClassGroup",
         back_populates="institution",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="noload",
     )
     students = relationship(
         "Student",
         back_populates="institution",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="noload",
     )
     lessons = relationship(
         "Lesson",
         back_populates="institution",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="noload",
     )
     rooms = relationship(
         "Room",
         back_populates="institution",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="noload",
     )
     time_slots = relationship(
         "TimeSlot",
         back_populates="institution",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="noload",
     )
     constraints = relationship(
         "Constraint",
         back_populates="institution",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="noload",
     )
     schedules = relationship(
         "Schedule",
         back_populates="institution",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="noload",
     )
     streams = relationship(
         "Stream",
         back_populates="institution",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="noload",
     )
     study_groups = relationship(
         "StudyGroup",
         back_populates="institution",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="noload",
     )

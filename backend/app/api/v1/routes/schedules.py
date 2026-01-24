@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.schemas.schedule import (
@@ -85,7 +85,136 @@ async def list_schedules(
         select(Schedule).where(Schedule.institution_id == institution_id)
     )
     schedules = result.scalars().all()
-    return [ScheduleResponse.model_validate(s) for s in schedules]
+    if not schedules:
+        return []
+
+    # Один запрос на кол-во записей, без загрузки schedule.entries
+    ids = [s.id for s in schedules]
+    counts_result = await db.execute(
+        select(ScheduleEntry.schedule_id, func.count(ScheduleEntry.id).label("c"))
+        .where(ScheduleEntry.schedule_id.in_(ids))
+        .group_by(ScheduleEntry.schedule_id)
+    )
+    counts = {row.schedule_id: row.c for row in counts_result.all()}
+
+    return [
+        ScheduleResponse(
+            id=s.id,
+            institution_id=s.institution_id,
+            name=s.name,
+            academic_period=s.academic_period,
+            status=s.status,
+            generated_at=s.generated_at,
+            created_at=s.created_at,
+            updated_at=s.updated_at,
+            entries=[],
+            entries_count=counts.get(s.id, 0),
+        )
+        for s in schedules
+    ]
+
+
+@router.get("/{schedule_id}/with-references")
+async def get_schedule_with_references(
+    schedule_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Расписание и все справочники учреждения одним запросом (вместо 8 HTTP)."""
+    from app.api.v1.schemas.class_group import ClassGroupResponse
+    from app.api.v1.schemas.lesson import LessonResponse
+    from app.api.v1.schemas.room import RoomResponse
+    from app.api.v1.schemas.student import StudentResponse
+    from app.api.v1.schemas.study_group import StudyGroupResponse
+    from app.api.v1.schemas.teacher import TeacherResponse
+    from app.api.v1.schemas.time_slot import TimeSlotResponse
+
+    from app.db.models import (
+        ClassGroup,
+        Lesson,
+        Room,
+        Student,
+        StudyGroup,
+        Teacher,
+        TimeSlot,
+    )
+    from app.db.models.study_group import study_group_student
+
+    result = await db.execute(
+        select(Schedule)
+        .join(Institution)
+        .where(Schedule.id == schedule_id, Institution.user_id == current_user.id)
+    )
+    schedule = result.scalar_one_or_none()
+    if not schedule:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found"
+        )
+    iid = schedule.institution_id
+
+    entries_result = await db.execute(
+        select(ScheduleEntry).where(ScheduleEntry.schedule_id == schedule_id)
+    )
+    entries = entries_result.scalars().all()
+
+    schedule_dict = {
+        "id": schedule.id,
+        "institution_id": schedule.institution_id,
+        "name": schedule.name,
+        "academic_period": schedule.academic_period,
+        "status": schedule.status,
+        "generated_at": schedule.generated_at,
+        "created_at": schedule.created_at,
+        "updated_at": schedule.updated_at,
+        "entries": [ScheduleEntryResponse.model_validate(e) for e in entries],
+    }
+
+    ts = (await db.execute(select(TimeSlot).where(TimeSlot.institution_id == iid))).scalars().all()
+    les = (await db.execute(select(Lesson).where(Lesson.institution_id == iid))).scalars().all()
+    tch = (await db.execute(select(Teacher).where(Teacher.institution_id == iid))).scalars().all()
+    rm = (await db.execute(select(Room).where(Room.institution_id == iid))).scalars().all()
+    cg = (await db.execute(select(ClassGroup).where(ClassGroup.institution_id == iid))).scalars().all()
+    sg = (await db.execute(select(StudyGroup).where(StudyGroup.institution_id == iid))).scalars().all()
+    st = (await db.execute(select(Student).where(Student.institution_id == iid))).scalars().all()
+
+    sg_ids = [s.id for s in sg]
+    sg_to_students: dict = {}
+    if sg_ids:
+        sgs_result = await db.execute(
+            select(Student, study_group_student.c.study_group_id)
+            .select_from(Student)
+            .join(study_group_student, Student.id == study_group_student.c.student_id)
+            .where(study_group_student.c.study_group_id.in_(sg_ids))
+        )
+        for row in sgs_result.all():
+            student, sgg_id = row[0], row[1]
+            sg_to_students.setdefault(sgg_id, []).append(
+                {"id": str(student.id), "full_name": student.full_name, "student_number": student.student_number}
+            )
+
+    study_groups_data = [
+        StudyGroupResponse(
+            id=s.id,
+            institution_id=s.institution_id,
+            stream_id=s.stream_id,
+            name=s.name,
+            created_at=s.created_at,
+            updated_at=s.updated_at,
+            students=sg_to_students.get(s.id, []),
+        )
+        for s in sg
+    ]
+
+    return {
+        "schedule": ScheduleResponse.model_validate(schedule_dict),
+        "time_slots": [TimeSlotResponse.model_validate(x) for x in ts],
+        "lessons": [LessonResponse.model_validate(x) for x in les],
+        "teachers": [TeacherResponse.model_validate(x) for x in tch],
+        "rooms": [RoomResponse.model_validate(x) for x in rm],
+        "class_groups": [ClassGroupResponse.model_validate(x) for x in cg],
+        "study_groups": study_groups_data,
+        "students": [StudentResponse.model_validate(x) for x in st],
+    }
 
 
 @router.get("/{schedule_id}", response_model=ScheduleResponse)
@@ -110,10 +239,19 @@ async def get_schedule(
     )
     entries = entries_result.scalars().all()
 
-    schedule_dict = ScheduleResponse.model_validate(schedule).model_dump()
-    schedule_dict["entries"] = [
-        ScheduleEntryResponse.model_validate(entry) for entry in entries
-    ]
+    # Собираем ответ вручную, чтобы не обращаться к schedule.entries
+    # (это запускает лишний selectin и каскадные загрузки)
+    schedule_dict = {
+        "id": schedule.id,
+        "institution_id": schedule.institution_id,
+        "name": schedule.name,
+        "academic_period": schedule.academic_period,
+        "status": schedule.status,
+        "generated_at": schedule.generated_at,
+        "created_at": schedule.created_at,
+        "updated_at": schedule.updated_at,
+        "entries": [ScheduleEntryResponse.model_validate(e) for e in entries],
+    }
     return ScheduleResponse.model_validate(schedule_dict)
 
 

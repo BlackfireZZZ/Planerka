@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Plus, Calendar, Download, Building2 } from "lucide-react";
+import { Plus, Calendar, Download, Building2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { schedulesApi } from "@/api/schedules";
@@ -79,6 +79,19 @@ export const SchedulesPage: React.FC = () => {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    if (!confirm("Вы уверены, что хотите удалить это расписание?")) return;
+    try {
+      await schedulesApi.delete(id);
+      if (selectedInstitutionId) {
+        await loadSchedules(selectedInstitutionId);
+      }
+    } catch (error) {
+      console.error("Failed to delete schedule:", error);
+      alert("Не удалось удалить расписание");
+    }
+  };
+
   if (loadingInstitutions) {
     return <div className="p-8">Загрузка...</div>;
   }
@@ -151,9 +164,9 @@ export const SchedulesPage: React.FC = () => {
                       Статус:{" "}
                       <span className="capitalize">{schedule.status}</span>
                     </p>
-                    {schedule.entries.length > 0 && (
+                    {(schedule.entries_count ?? schedule.entries?.length ?? 0) > 0 && (
                       <p className="text-xs text-muted-foreground">
-                        {schedule.entries.length} записей
+                        {schedule.entries_count ?? schedule.entries?.length ?? 0} записей
                       </p>
                     )}
                   </div>
@@ -175,6 +188,14 @@ export const SchedulesPage: React.FC = () => {
                       Экспорт PDF
                     </Button>
                   )}
+                  <Button
+                    variant="destructive"
+                    className="w-full"
+                    onClick={() => handleDelete(schedule.id)}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Удалить
+                  </Button>
                 </div>
               </Card>
             ))}

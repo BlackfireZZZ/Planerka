@@ -70,4 +70,23 @@ export const studyGroupsApi = {
   delete: async (id: string): Promise<void> => {
     await apiClient.delete(`/api/v1/study-groups/${id}`);
   },
+
+  assignLessons: async (
+    studyGroupId: string,
+    lessonIds: string[],
+  ): Promise<void> => {
+    await apiClient.post(
+      `/api/v1/study-groups/${studyGroupId}/assign-lessons`,
+      { lesson_ids: lessonIds },
+    );
+  },
+
+  getLessons: async (
+    studyGroupId: string,
+  ): Promise<{ lesson_id: string }[]> => {
+    const response = await apiClient.get<{ lesson_id: string }[]>(
+      `/api/v1/study-groups/${studyGroupId}/lessons`,
+    );
+    return response.data;
+  },
 };

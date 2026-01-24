@@ -56,4 +56,23 @@ export const classGroupsApi = {
   delete: async (id: string): Promise<void> => {
     await apiClient.delete(`/api/v1/class-groups/${id}`);
   },
+
+  assignLessons: async (
+    groupId: string,
+    lessonIds: string[],
+  ): Promise<void> => {
+    await apiClient.post(
+      `/api/v1/class-groups/${groupId}/assign-lessons`,
+      { lesson_ids: lessonIds },
+    );
+  },
+
+  getLessons: async (
+    groupId: string,
+  ): Promise<{ lesson_id: string }[]> => {
+    const response = await apiClient.get<{ lesson_id: string }[]>(
+      `/api/v1/class-groups/${groupId}/lessons`,
+    );
+    return response.data;
+  },
 };

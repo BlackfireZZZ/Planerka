@@ -33,18 +33,14 @@ class ScheduleEncoder:
         rooms: List[UUID],
         time_slots: List[UUID],
         teacher_lessons: Dict[int, Set[UUID]],
+        class_group_lessons: Dict[UUID, Set[UUID]],
+        study_group_lessons: Dict[UUID, Set[UUID]],
     ) -> None:
         """
         Creates boolean variables for all possible combinations.
 
-        Args:
-            lessons: List of lesson IDs
-            teachers: List of teacher IDs
-            class_groups: List of class group IDs
-            study_groups: List of study group IDs
-            rooms: List of room IDs
-            time_slots: List of time slot IDs
-            teacher_lessons: Dictionary {teacher_id: set(lesson_ids)} - which lessons a teacher can teach
+        Only creates variables for (lesson, group) pairs that exist in
+        class_group_lessons or study_group_lessons.
         """
         for cg_id in class_groups:
             self.group_types[cg_id] = "class_group"
@@ -59,6 +55,14 @@ class ScheduleEncoder:
                     continue
 
                 for group_id in all_groups:
+                    group_type = self.group_types.get(group_id, "class_group")
+                    if group_type == "class_group":
+                        if lesson_id not in class_group_lessons.get(group_id, set()):
+                            continue
+                    else:
+                        if lesson_id not in study_group_lessons.get(group_id, set()):
+                            continue
+
                     for room_id in rooms:
                         for time_slot_id in time_slots:
                             key = (
@@ -73,6 +77,57 @@ class ScheduleEncoder:
                                 self.reverse_variables[self.next_var] = key
                                 self.next_var += 1
 
+    def get_infeasible_pairs(
+        self,
+        class_group_lessons: Dict[UUID, Set[UUID]],
+        study_group_lessons: Dict[UUID, Set[UUID]],
+        room_capacities: Dict[UUID, int],
+        class_group_sizes: Dict[UUID, int],
+        study_group_sizes: Dict[UUID, int],
+    ) -> List[Tuple[UUID, UUID, str]]:
+        """
+        Returns (lesson_id, group_id, reason) for (lesson, group) pairs that have
+        no valid variable (no teacher) or only variables with insufficient room capacity.
+        """
+        result: List[Tuple[UUID, UUID, str]] = []
+        for cg_id, lesson_ids in class_group_lessons.items():
+            for lesson_id in lesson_ids:
+                vars_for = [
+                    (var, key)
+                    for key, var in self.variables.items()
+                    if key[0] == lesson_id and key[2] == cg_id
+                ]
+                if not vars_for:
+                    result.append(
+                        (lesson_id, cg_id, "no teacher is assigned to teach this lesson for this group")
+                    )
+                    continue
+                cap = class_group_sizes.get(cg_id, 0)
+                if any(room_capacities.get(key[3], 0) >= cap for _, key in vars_for):
+                    continue
+                result.append(
+                    (lesson_id, cg_id, "no room has sufficient capacity for this group")
+                )
+        for sg_id, lesson_ids in study_group_lessons.items():
+            for lesson_id in lesson_ids:
+                vars_for = [
+                    (var, key)
+                    for key, var in self.variables.items()
+                    if key[0] == lesson_id and key[2] == sg_id
+                ]
+                if not vars_for:
+                    result.append(
+                        (lesson_id, sg_id, "no teacher is assigned to teach this lesson for this group")
+                    )
+                    continue
+                cap = study_group_sizes.get(sg_id, 0)
+                if any(room_capacities.get(key[3], 0) >= cap for _, key in vars_for):
+                    continue
+                result.append(
+                    (lesson_id, sg_id, "no room has sufficient capacity for this group")
+                )
+        return result
+
     def encode_hard_constraints(
         self,
         lessons: List[UUID],
@@ -85,80 +140,128 @@ class ScheduleEncoder:
         class_group_sizes: Dict[UUID, int],
         study_group_sizes: Dict[UUID, int],
         student_group_memberships: Dict[UUID, Dict],
+        class_group_lessons: Dict[UUID, Set[UUID]],
+        study_group_lessons: Dict[UUID, Set[UUID]],
+        *,
+        skip_conflicts: bool = False,
     ) -> None:
         """
         Encodes mandatory constraints (hard constraints).
 
         Hard constraints:
-        1. Each lesson must be assigned exactly once
-        2. Teacher cannot be in two places at the same time
-        3. Class cannot be in two places at the same time
-        4. Room cannot be occupied by two lessons simultaneously
-        5. Teacher must teach only their subjects (already checked in encode_variables)
+        1. Each (lesson_id, group_id) pair must be assigned exactly once
+        2. Teacher cannot be in two places at the same time (conflict: teacher overlap)
+        3. Same class/group cannot have two lessons at the same time (per group_id)
+        4. Room cannot be occupied by two lessons simultaneously (conflict: room)
+        5. Student set must not overlap: class vs study, study vs study (conflict: students)
         6. Room must have sufficient capacity
+
+        If skip_conflicts=True, only (1) and (6) are applied (for diagnostic use).
         """
-        for lesson_id in lessons:
-            lesson_vars = [
-                var
-                for (l_id, t_id, cg_id, r_id, ts_id), var in self.variables.items()
-                if l_id == lesson_id
-            ]
-            if lesson_vars:
-                self.cnf.append(lesson_vars)
-                for i in range(len(lesson_vars)):
-                    for j in range(i + 1, len(lesson_vars)):
-                        self.cnf.append([-lesson_vars[i], -lesson_vars[j]])
-        for teacher_id in teachers:
-            for time_slot_id in time_slots:
-                teacher_time_vars = [
-                    var
-                    for (l_id, t_id, cg_id, r_id, ts_id), var in self.variables.items()
-                    if t_id == teacher_id and ts_id == time_slot_id
-                ]
-                for i in range(len(teacher_time_vars)):
-                    for j in range(i + 1, len(teacher_time_vars)):
-                        self.cnf.append([-teacher_time_vars[i], -teacher_time_vars[j]])
-        all_groups = class_groups + study_groups
-        for group_id in all_groups:
-            for time_slot_id in time_slots:
-                group_time_vars = [
+        for cg_id in class_groups:
+            for lesson_id in class_group_lessons.get(cg_id, set()):
+                lesson_vars = [
                     var
                     for (l_id, t_id, g_id, r_id, ts_id), var in self.variables.items()
-                    if g_id == group_id and ts_id == time_slot_id
+                    if l_id == lesson_id and g_id == cg_id
                 ]
-                for i in range(len(group_time_vars)):
-                    for j in range(i + 1, len(group_time_vars)):
-                        self.cnf.append([-group_time_vars[i], -group_time_vars[j]])
-        for student_id, memberships in student_group_memberships.items():
-            class_group_id = memberships.get("class_group_id")
-            study_group_ids = memberships.get("study_group_ids", [])
-            
-            if class_group_id and study_group_ids:
-                for study_group_id in study_group_ids:
-                    for time_slot_id in time_slots:
-                        class_vars = [
-                            var
-                            for (l_id, t_id, g_id, r_id, ts_id), var in self.variables.items()
-                            if g_id == class_group_id and ts_id == time_slot_id
-                        ]
-                        study_vars = [
-                            var
-                            for (l_id, t_id, g_id, r_id, ts_id), var in self.variables.items()
-                            if g_id == study_group_id and ts_id == time_slot_id
-                        ]
-                        for class_var in class_vars:
-                            for study_var in study_vars:
-                                self.cnf.append([-class_var, -study_var])
-        for room_id in rooms:
-            for time_slot_id in time_slots:
-                room_time_vars = [
+                if lesson_vars:
+                    self.cnf.append(lesson_vars)
+                    for i in range(len(lesson_vars)):
+                        for j in range(i + 1, len(lesson_vars)):
+                            self.cnf.append([-lesson_vars[i], -lesson_vars[j]])
+        for sg_id in study_groups:
+            for lesson_id in study_group_lessons.get(sg_id, set()):
+                lesson_vars = [
                     var
-                    for (l_id, t_id, cg_id, r_id, ts_id), var in self.variables.items()
-                    if r_id == room_id and ts_id == time_slot_id
+                    for (l_id, t_id, g_id, r_id, ts_id), var in self.variables.items()
+                    if l_id == lesson_id and g_id == sg_id
                 ]
-                for i in range(len(room_time_vars)):
-                    for j in range(i + 1, len(room_time_vars)):
-                        self.cnf.append([-room_time_vars[i], -room_time_vars[j]])
+                if lesson_vars:
+                    self.cnf.append(lesson_vars)
+                    for i in range(len(lesson_vars)):
+                        for j in range(i + 1, len(lesson_vars)):
+                            self.cnf.append([-lesson_vars[i], -lesson_vars[j]])
+
+        if not skip_conflicts:
+            # Conflict: teacher cannot be in two places at the same time
+            for teacher_id in teachers:
+                for time_slot_id in time_slots:
+                    teacher_time_vars = [
+                        var
+                        for (l_id, t_id, cg_id, r_id, ts_id), var in self.variables.items()
+                        if t_id == teacher_id and ts_id == time_slot_id
+                    ]
+                    for i in range(len(teacher_time_vars)):
+                        for j in range(i + 1, len(teacher_time_vars)):
+                            self.cnf.append([-teacher_time_vars[i], -teacher_time_vars[j]])
+            # Conflict: same class/group cannot have two lessons at the same time (per group_id)
+            all_groups = class_groups + study_groups
+            for group_id in all_groups:
+                for time_slot_id in time_slots:
+                    group_time_vars = [
+                        var
+                        for (l_id, t_id, g_id, r_id, ts_id), var in self.variables.items()
+                        if g_id == group_id and ts_id == time_slot_id
+                    ]
+                    for i in range(len(group_time_vars)):
+                        for j in range(i + 1, len(group_time_vars)):
+                            self.cnf.append([-group_time_vars[i], -group_time_vars[j]])
+            # Conflict: student set must not overlap (class vs study for same student)
+            for student_id, memberships in student_group_memberships.items():
+                class_group_id = memberships.get("class_group_id")
+                study_group_ids = memberships.get("study_group_ids", [])
+                if class_group_id and study_group_ids:
+                    for study_group_id in study_group_ids:
+                        for time_slot_id in time_slots:
+                            class_vars = [
+                                var
+                                for (l_id, t_id, g_id, r_id, ts_id), var in self.variables.items()
+                                if g_id == class_group_id and ts_id == time_slot_id
+                            ]
+                            study_vars = [
+                                var
+                                for (l_id, t_id, g_id, r_id, ts_id), var in self.variables.items()
+                                if g_id == study_group_id and ts_id == time_slot_id
+                            ]
+                            for class_var in class_vars:
+                                for study_var in study_vars:
+                                    self.cnf.append([-class_var, -study_var])
+            # Conflict: two study groups with overlapping students cannot run in the same slot
+            overlapping_sg_pairs: Set[Tuple[UUID, UUID]] = set()
+            for memberships in student_group_memberships.values():
+                sgs = memberships.get("study_group_ids", [])
+                for i in range(len(sgs)):
+                    for j in range(i + 1, len(sgs)):
+                        a, b = sgs[i], sgs[j]
+                        if a != b:
+                            overlapping_sg_pairs.add((min(a, b), max(a, b)))
+            for (sg_a, sg_b) in overlapping_sg_pairs:
+                for time_slot_id in time_slots:
+                    a_vars = [
+                        var
+                        for (l_id, t_id, g_id, r_id, ts_id), var in self.variables.items()
+                        if g_id == sg_a and ts_id == time_slot_id
+                    ]
+                    b_vars = [
+                        var
+                        for (l_id, t_id, g_id, r_id, ts_id), var in self.variables.items()
+                        if g_id == sg_b and ts_id == time_slot_id
+                    ]
+                    for av in a_vars:
+                        for bv in b_vars:
+                            self.cnf.append([-av, -bv])
+            # Conflict: room cannot be used by two lessons at the same time
+            for room_id in rooms:
+                for time_slot_id in time_slots:
+                    room_time_vars = [
+                        var
+                        for (l_id, t_id, cg_id, r_id, ts_id), var in self.variables.items()
+                        if r_id == room_id and ts_id == time_slot_id
+                    ]
+                    for i in range(len(room_time_vars)):
+                        for j in range(i + 1, len(room_time_vars)):
+                            self.cnf.append([-room_time_vars[i], -room_time_vars[j]])
         for (l_id, t_id, g_id, r_id, ts_id), var in self.variables.items():
             room_capacity = room_capacities.get(r_id, 0)
             group_type = self.group_types.get(g_id, "class_group")

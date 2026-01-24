@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql.base import UUID
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
+
 study_group_student = Table(
     "study_group_students",
     Base.metadata,
@@ -20,6 +21,23 @@ study_group_student = Table(
         "student_id",
         UUID(as_uuid=True),
         ForeignKey("students.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+)
+
+study_group_lessons = Table(
+    "study_group_lessons",
+    Base.metadata,
+    Column(
+        "study_group_id",
+        UUID(as_uuid=True),
+        ForeignKey("study_groups.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "lesson_id",
+        UUID(as_uuid=True),
+        ForeignKey("lessons.id", ondelete="CASCADE"),
         primary_key=True,
     ),
 )
@@ -61,5 +79,11 @@ class StudyGroup(Base):
         "ScheduleEntry",
         back_populates="study_group",
         cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    lessons = relationship(
+        "Lesson",
+        secondary=study_group_lessons,
+        back_populates="study_groups",
         lazy="selectin",
     )

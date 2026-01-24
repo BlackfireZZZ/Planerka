@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { Building2, ArrowLeft, Edit, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { TimeSlotsTab } from "./tabs/TimeSlotsTab";
 import { StudentsTab } from "./tabs/StudentsTab";
 import { ConstraintsTab } from "./tabs/ConstraintsTab";
 import { SchedulesTab } from "./tabs/SchedulesTab";
+import { GroupLessonsTab } from "./tabs/GroupLessonsTab";
 
 export const InstitutionDetailPage: React.FC = () => {
   const { institutionId } = useParams<{ institutionId: string }>();
@@ -23,6 +24,7 @@ export const InstitutionDetailPage: React.FC = () => {
   const [institution, setInstitution] = useState<Institution | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const tabsListRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (institutionId) {
@@ -30,6 +32,18 @@ export const InstitutionDetailPage: React.FC = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [institutionId]);
+
+  useEffect(() => {
+    const el = tabsListRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth) return;
+      el.scrollLeft += e.deltaY;
+      e.preventDefault();
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [loading, institution]);
 
   const loadInstitution = async () => {
     if (!institutionId) return;
@@ -149,15 +163,19 @@ export const InstitutionDetailPage: React.FC = () => {
 
       <Card className="p-6">
         <Tabs defaultValue="lessons" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-10">
+          <TabsList
+            ref={tabsListRef}
+            className="tabs-list-scroll flex w-full min-w-0 flex-nowrap justify-start overflow-x-auto overflow-y-hidden [&_button]:shrink-0"
+          >
             <TabsTrigger value="lessons">Уроки</TabsTrigger>
             <TabsTrigger value="teachers">Преподаватели</TabsTrigger>
-            <TabsTrigger value="class-groups">Группы классов</TabsTrigger>
+            <TabsTrigger value="class-groups">Классы</TabsTrigger>
+            <TabsTrigger value="students">Студенты</TabsTrigger>
             <TabsTrigger value="streams">Потоки</TabsTrigger>
             <TabsTrigger value="study-groups">Учебные группы</TabsTrigger>
+            <TabsTrigger value="group-lessons">Привязка уроков</TabsTrigger>
             <TabsTrigger value="rooms">Аудитории</TabsTrigger>
             <TabsTrigger value="time-slots">Временные слоты</TabsTrigger>
-            <TabsTrigger value="students">Студенты</TabsTrigger>
             <TabsTrigger value="constraints">Ограничения</TabsTrigger>
             <TabsTrigger value="schedules">Расписания</TabsTrigger>
           </TabsList>
@@ -176,14 +194,17 @@ export const InstitutionDetailPage: React.FC = () => {
           <TabsContent value="study-groups" className="mt-4">
             <StudyGroupsTab institutionId={institution.id} />
           </TabsContent>
+          <TabsContent value="students" className="mt-4">
+            <StudentsTab institutionId={institution.id} />
+          </TabsContent>
+          <TabsContent value="group-lessons" className="mt-4">
+            <GroupLessonsTab institutionId={institution.id} />
+          </TabsContent>
           <TabsContent value="rooms" className="mt-4">
             <RoomsTab institutionId={institution.id} />
           </TabsContent>
           <TabsContent value="time-slots" className="mt-4">
             <TimeSlotsTab institutionId={institution.id} />
-          </TabsContent>
-          <TabsContent value="students" className="mt-4">
-            <StudentsTab institutionId={institution.id} />
           </TabsContent>
           <TabsContent value="constraints" className="mt-4">
             <ConstraintsTab institutionId={institution.id} />
