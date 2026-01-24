@@ -51,11 +51,10 @@ class ConstraintBuilder:
                 "room_capacities": {...},
                 "class_group_sizes": {...},
                 "study_group_sizes": {...},
-                "student_group_memberships": {...},  # {student_id: {class_group_id, study_group_ids}}
+                "student_group_memberships": {...},
                 "constraints": [...]
             }
         """
-        # Load all necessary data
         lessons_result = await self.db.execute(
             select(Lesson).where(Lesson.institution_id == institution_id)
         )
@@ -80,8 +79,6 @@ class ConstraintBuilder:
             select(TimeSlot).where(TimeSlot.institution_id == institution_id)
         )
         time_slots = time_slots_result.scalars().all()
-
-        # Load teacher-lesson associations
         teacher_lessons_dict: Dict[int, Set[UUID]] = {}
         for teacher in teachers:
             teacher_lessons_result = await self.db.execute(
@@ -89,29 +86,20 @@ class ConstraintBuilder:
             )
             teacher_lessons = teacher_lessons_result.scalars().all()
             teacher_lessons_dict[teacher.id] = {tl.lesson_id for tl in teacher_lessons}
-
-        # Load constraints
         constraints_result = await self.db.execute(
             select(Constraint).where(Constraint.institution_id == institution_id)
         )
         constraints = constraints_result.scalars().all()
-
-        # Load study groups
         study_groups_result = await self.db.execute(
             select(StudyGroup).where(StudyGroup.institution_id == institution_id)
         )
         study_groups = study_groups_result.scalars().all()
-
-        # Build dictionaries for quick access
         room_capacities = {room.id: room.capacity for room in rooms}
         class_group_sizes = {cg.id: cg.student_count for cg in class_groups}
-
-        # Calculate study group sizes (number of students)
         study_group_sizes = {}
-        student_group_memberships: Dict[UUID, Dict] = {}  # {student_id: {"class_group_id": ..., "study_group_ids": [...]}}
+        student_group_memberships: Dict[UUID, Dict] = {}
 
         for study_group in study_groups:
-            # Count students in study group
             result = await self.db.execute(
                 select(Student)
                 .join(study_group_student)
@@ -119,8 +107,6 @@ class ConstraintBuilder:
             )
             students = result.scalars().all()
             study_group_sizes[study_group.id] = len(students)
-
-            # Track student memberships
             for student in students:
                 if student.id not in student_group_memberships:
                     student_group_memberships[student.id] = {
@@ -130,8 +116,6 @@ class ConstraintBuilder:
                 student_group_memberships[student.id]["study_group_ids"].append(
                     study_group.id
                 )
-
-        # Convert constraints to dictionaries
         constraints_list = []
         for constraint in constraints:
             constraints_list.append(
@@ -166,7 +150,6 @@ class ConstraintBuilder:
         Returns:
             {teacher_id: [available_time_slot_ids]}
         """
-        # Load constraints of type teacher_unavailable
         constraints_result = await self.db.execute(
             select(Constraint).where(
                 Constraint.institution_id == institution_id,
@@ -174,14 +157,10 @@ class ConstraintBuilder:
             )
         )
         constraints = constraints_result.scalars().all()
-
-        # Load all time slots
         time_slots_result = await self.db.execute(
             select(TimeSlot).where(TimeSlot.institution_id == institution_id)
         )
         all_time_slots = {ts.id for ts in time_slots_result.scalars().all()}
-
-        # Load all teachers
         teachers_result = await self.db.execute(
             select(Teacher).where(Teacher.institution_id == institution_id)
         )
@@ -209,7 +188,6 @@ class ConstraintBuilder:
         Returns:
             {room_id: [available_time_slot_ids]}
         """
-        # Similar to build_teacher_availability
         constraints_result = await self.db.execute(
             select(Constraint).where(
                 Constraint.institution_id == institution_id,

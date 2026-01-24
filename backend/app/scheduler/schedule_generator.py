@@ -32,8 +32,6 @@ class ScheduleGenerator:
             (is_valid, error_message)
         """
         data = await self.constraint_builder.build_from_institution(institution_id)
-
-        # Check for required data
         if not data["lessons"]:
             return False, "No lessons found for this institution"
         if not data["teachers"]:
@@ -44,16 +42,11 @@ class ScheduleGenerator:
             return False, "No rooms found for this institution"
         if not data["time_slots"]:
             return False, "No time slots found for this institution"
-
-        # Check that each teacher has at least one lesson
         teachers_with_lessons = {
             t_id for t_id, lessons in data["teacher_lessons"].items() if lessons
         }
         if not teachers_with_lessons:
             return False, "No teachers have assigned lessons"
-
-        # Check that there are enough time slots
-        # (simplified check - can be improved)
         min_required_slots = len(data["lessons"])
         if len(data["time_slots"]) < min_required_slots:
             return (
@@ -85,15 +78,10 @@ class ScheduleGenerator:
                     "time_slot_id": UUID
                 }
         """
-        # Validation
         is_valid, error = await self.validate_input(institution_id)
         if not is_valid:
             return False, None, error
-
-        # Load data
         data = await self.constraint_builder.build_from_institution(institution_id)
-
-        # Create encoder
         encoder = ScheduleEncoder()
         study_groups = data.get("study_groups", [])
         encoder.encode_variables(
@@ -105,8 +93,6 @@ class ScheduleGenerator:
             time_slots=data["time_slots"],
             teacher_lessons=data["teacher_lessons"],
         )
-
-        # Encode hard constraints
         encoder.encode_hard_constraints(
             lessons=data["lessons"],
             class_groups=data["class_groups"],
@@ -119,16 +105,10 @@ class ScheduleGenerator:
             study_group_sizes=data.get("study_group_sizes", {}),
             student_group_memberships=data.get("student_group_memberships", {}),
         )
-
-        # Encode custom constraints
         encoder.encode_custom_constraints(data["constraints"])
-
-        # Solve SAT problem
         with ScheduleSolver(encoder) as solver:
             if solver.solve(timeout=timeout):
                 schedule = solver.extract_schedule()
-
-                # Convert to list of dictionaries
                 schedule_entries = []
                 group_types = encoder.group_types
                 for (
@@ -138,7 +118,6 @@ class ScheduleGenerator:
                     room_id,
                     time_slot_id,
                 ) in schedule:
-                    # Determine if this is a class group or study group
                     group_type = group_types.get(group_id, "class_group")
                     entry = {
                         "lesson_id": lesson_id,

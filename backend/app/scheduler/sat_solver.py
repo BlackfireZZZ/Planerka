@@ -31,12 +31,9 @@ class ScheduleSolver:
         """
         cnf = self.encoder.get_cnf()
         self.solver = Solver(name="glucose3", bootstrap_with=cnf)
-
-        # Set timeout (if supported)
         try:
             self.solver.set_timeout(timeout)
         except AttributeError:
-            # Some solvers don't support timeout
             pass
 
         return self.solver.solve()
@@ -61,7 +58,6 @@ class ScheduleSolver:
 
         for var in model:
             if var > 0 and var in reverse_mapping:
-                # Positive variable means this combination is selected
                 schedule.append(reverse_mapping[var])
 
         return schedule
