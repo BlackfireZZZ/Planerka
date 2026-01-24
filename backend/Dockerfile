@@ -19,11 +19,8 @@ COPY alembic ./alembic
 COPY alembic.ini ./
 COPY tests ./tests
 COPY scripts ./scripts
-
-# Make scripts executable
 RUN chmod +x scripts/*.sh
 
 EXPOSE 8000
-# Use init script as entrypoint
 ENTRYPOINT ["/app/scripts/init.sh"]
 CMD ["uv", "run", "uvicorn", "app.main:app", "--port", "8000", "--host", "0.0.0.0"]

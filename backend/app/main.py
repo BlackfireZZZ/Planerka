@@ -33,8 +33,6 @@ async def lifespan(app: FastAPI):
         logger.info("✅ Database connection successful!")
     except Exception as e:
         logger.error(f"❌ Database connection failed: {e}")
-
-    # Startup: Initialize S3 storage
     try:
         s3_storage = await get_s3_client()
         await s3_storage.ensure_bucket_exists()
@@ -44,23 +42,14 @@ async def lifespan(app: FastAPI):
 
     logger.info(f"🚀 {settings.APP_NAME} started!")
     yield
-
-    # Shutdown: Close database connections
     await engine.dispose()
     logger.info("🔌 Database connections closed")
-
-
-# -------------------------------
-# 3. FastAPI aplication
-# -------------------------------
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     debug=settings.DEBUG,
     lifespan=lifespan,
 )
-
-# CORS setup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
