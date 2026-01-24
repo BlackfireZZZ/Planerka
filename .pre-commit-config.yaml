@@ -1,0 +1,14 @@
+repos:
+  - repo: https://github.com/psf/black
+    rev: 25.9.0
+    hooks:
+      - id: black
+        args: [ "--config", "backend/pyproject.toml", "backend" ]
+        language_version: python3
+
+  - repo: https://github.com/PyCQA/isort
+    rev: 7.0.0
+    hooks:
+      - id: isort
+        args: [ "--settings-path", "backend/pyproject.toml", "backend" ]
+        language_version: python3
