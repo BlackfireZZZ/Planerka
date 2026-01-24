@@ -109,10 +109,7 @@ async def get_refresh_session(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Session has expired",
             )
-
-        # Verify refresh token hash (replay detection)
         if not verify_refresh_token(random_part, session.refresh_token_hash):
-            # Token replay detected - revoke all user sessions
             from sqlalchemy import update
 
             await db.execute(

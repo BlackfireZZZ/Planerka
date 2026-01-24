@@ -35,8 +35,6 @@ class SMTPEmailProvider(EmailProvider):
         msg.attach(MIMEText(html_content, "html"))
 
         try:
-            # Note: smtplib is blocking. In a high-load async app, run this in a threadpool.
-            # For simplicity here, we'll keep it direct, but be aware it blocks the event loop.
             server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT)
             if settings.SMTP_TLS:
                 server.starttls()

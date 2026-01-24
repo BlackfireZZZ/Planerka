@@ -10,11 +10,7 @@ from fastapi import HTTPException, status
 from itsdangerous import URLSafeTimedSerializer
 
 from app.core.config import settings
-
-# Password hasher
 password_hasher = PasswordHasher()
-
-# CSRF token serializer
 csrf_serializer = URLSafeTimedSerializer(settings.CSRF_SECRET_KEY)
 
 
@@ -146,7 +142,7 @@ def generate_refresh_token_value() -> str:
 
 def hash_refresh_token(token: str) -> str:
     """Hash a refresh token for storage."""
-    return hash_password(token)  # Reuse password hasher for refresh tokens
+    return hash_password(token)
 
 
 def verify_refresh_token(plain_token: str, hashed_token: str) -> bool:

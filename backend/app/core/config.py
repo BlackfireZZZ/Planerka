@@ -13,15 +13,11 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
     ALLOWED_ORIGINS: List[str] = ["*"]
-
-    # Database settings
     DB_HOST: str = "db"
     DB_PORT: int = 5432
     DB_USER: str = "postgres"
     DB_PASSWORD: str = "postgres"
     DB_NAME: str = "postgres"
-
-    # S3 settings (MinIO)
     S3_ENDPOINT_URL: str = "http://minio:9000"
     S3_PUBLIC_URL: str = Field(
         "http://localhost:9000",
@@ -32,8 +28,6 @@ class Settings(BaseSettings):
     S3_REGION: str = "us-east-1"
     S3_BUCKET_NAME: str = "default-bucket"
     S3_USE_SSL: bool = False
-
-    # Redis settings
     REDIS_HOST: str = "redis"
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
@@ -52,8 +46,7 @@ class Settings(BaseSettings):
     COOKIE_SECURE: bool = False
     COOKIE_SAME_SITE: str = "lax"
     COOKIE_DOMAIN: str | None = "localhost"
-    # Email settings
-    EMAIL_PROVIDER: str = "resend"  # "smtp" or "resend"
+    EMAIL_PROVIDER: str = "resend"
     SMTP_HOST: str | None = None
     SMTP_PORT: int = 587
     SMTP_USER: str | None = None

@@ -34,7 +34,7 @@ def set_csrf_token_cookie(response: Response, token: str) -> None:
     response.set_cookie(
         key="csrf_token",
         value=token,
-        httponly=False,  # CSRF token must be accessible to JavaScript
+        httponly=False,
         secure=settings.COOKIE_SECURE,
         samesite=settings.COOKIE_SAME_SITE.lower(),
         domain=settings.COOKIE_DOMAIN,
