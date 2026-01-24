@@ -49,7 +49,6 @@ class S3Storage:
         except ClientError as e:
             error_code = e.response.get("Error", {}).get("Code", "")
             if error_code == "404":
-                # Bucket does not exist — create it
                 async with self.get_client() as client:
                     await client.create_bucket(Bucket=self.bucket_name)
                     logger.info(f"Created bucket {self.bucket_name}")
@@ -181,7 +180,6 @@ class S3Storage:
                 Params={"Bucket": self.bucket_name, "Key": object_key},
                 ExpiresIn=expires_in,
             )
-            # Replace internal endpoint URL with public URL for external access
             if self.endpoint_url != self.public_url:
                 presigned_url = presigned_url.replace(
                     self.endpoint_url, self.public_url
@@ -210,9 +208,6 @@ class S3Storage:
                         }
                     )
         return files
-
-
-# Global instance
 _storage_instance: Optional[S3Storage] = None
 
 
