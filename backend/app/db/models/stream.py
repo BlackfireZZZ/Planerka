@@ -7,8 +7,6 @@ from sqlalchemy.dialects.postgresql.base import UUID
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
-
-# Association table for many-to-many relationship between Stream and ClassGroup
 stream_class_group = Table(
     "stream_class_groups",
     Base.metadata,
@@ -43,8 +41,6 @@ class Stream(Base):
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-
-    # Relationships
     institution = relationship("Institution", back_populates="streams", lazy="selectin")
     class_groups = relationship(
         "ClassGroup",

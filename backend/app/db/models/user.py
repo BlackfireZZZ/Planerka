@@ -18,8 +18,6 @@ class User(Base):
     hashed_password = Column(String)
     is_active = Column(String, default="active")
     roles = Column(ARRAY(String), default=[], nullable=False)
-
-    # Relationships
     sessions = relationship(
         "Session", back_populates="user", cascade="all, delete-orphan", lazy="selectin"
     )

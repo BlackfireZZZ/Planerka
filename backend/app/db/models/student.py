@@ -32,8 +32,6 @@ class Student(Base):
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-
-    # Relationships
     institution = relationship(
         "Institution", back_populates="students", lazy="selectin"
     )

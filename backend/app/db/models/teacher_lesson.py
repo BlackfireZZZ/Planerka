@@ -27,7 +27,5 @@ class TeacherLesson(Base):
     )
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    # Relationships
     teacher = relationship("Teacher", back_populates="teacher_lessons", lazy="selectin")
     lesson = relationship("Lesson", back_populates="teacher_lessons", lazy="selectin")

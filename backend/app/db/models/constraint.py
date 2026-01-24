@@ -22,20 +22,18 @@ class Constraint(Base):
     )
     constraint_type = Column(
         String, nullable=False
-    )  # teacher_unavailable, room_unavailable, class_preference, etc.
+    )
     constraint_data = Column(
         JSON, nullable=False
-    )  # Flexible JSON structure for different constraint types
+    )
     priority = Column(
         Integer, default=1, nullable=False
-    )  # 1 = hard constraint, 0 = soft constraint
+    )
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-
-    # Relationships
     institution = relationship(
         "Institution", back_populates="constraints", lazy="selectin"
     )

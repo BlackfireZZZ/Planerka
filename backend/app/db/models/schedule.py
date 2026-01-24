@@ -20,16 +20,14 @@ class Schedule(Base):
         index=True,
     )
     name = Column(String, nullable=False)
-    academic_period = Column(String, nullable=True)  # e.g., "Fall 2025", "Spring 2025"
-    status = Column(String, default="draft", nullable=False)  # draft, generated, active
+    academic_period = Column(String, nullable=True)
+    status = Column(String, default="draft", nullable=False)
     generated_at = Column(DateTime(timezone=True), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-
-    # Relationships
     institution = relationship(
         "Institution", back_populates="schedules", lazy="selectin"
     )

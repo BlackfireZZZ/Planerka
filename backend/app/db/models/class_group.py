@@ -26,8 +26,6 @@ class ClassGroup(Base):
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-
-    # Relationships
     institution = relationship(
         "Institution", back_populates="class_groups", lazy="selectin"
     )

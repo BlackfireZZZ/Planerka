@@ -8,7 +8,7 @@ from app.db import Base
 class Session(Base):
     __tablename__ = "sessions"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, index=True)  # JTI
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True)
     user_id = Column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
@@ -27,6 +27,4 @@ class Session(Base):
     rotation_counter = Column(Integer, default=0, nullable=False)
     ip = Column(String, nullable=True)
     user_agent = Column(String, nullable=True)
-
-    # Relationships
     user = relationship("User", back_populates="sessions", lazy="selectin")

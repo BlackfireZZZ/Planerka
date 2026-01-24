@@ -21,15 +21,13 @@ class Room(Base):
     )
     name = Column(String, nullable=False)
     capacity = Column(Integer, nullable=False)
-    room_type = Column(String, nullable=True)  # e.g., "lecture", "lab", "seminar"
-    equipment = Column(String, nullable=True)  # JSON string or comma-separated
+    room_type = Column(String, nullable=True)
+    equipment = Column(String, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-
-    # Relationships
     institution = relationship("Institution", back_populates="rooms", lazy="selectin")
     schedule_entries = relationship(
         "ScheduleEntry",

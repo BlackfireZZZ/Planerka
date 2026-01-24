@@ -61,14 +61,12 @@ class ScheduleEntry(Base):
         nullable=False,
         index=True,
     )
-    week_number = Column(Integer, nullable=True)  # For multi-week schedules
+    week_number = Column(Integer, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-
-    # Relationships
     institution = relationship("Institution", lazy="selectin")
     schedule = relationship("Schedule", back_populates="entries", lazy="selectin")
     lesson = relationship("Lesson", back_populates="schedule_entries", lazy="selectin")

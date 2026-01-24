@@ -19,17 +19,15 @@ class TimeSlot(Base):
         nullable=False,
         index=True,
     )
-    day_of_week = Column(Integer, nullable=False)  # 0 = Monday, 6 = Sunday
+    day_of_week = Column(Integer, nullable=False)
     start_time = Column(Time, nullable=False)
     end_time = Column(Time, nullable=False)
-    slot_number = Column(Integer, nullable=False)  # Order within the day
+    slot_number = Column(Integer, nullable=False)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-
-    # Relationships
     institution = relationship(
         "Institution", back_populates="time_slots", lazy="selectin"
     )

@@ -21,6 +21,4 @@ class PasswordResetToken(Base):
     )
     expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
     used_at = Column(DateTime(timezone=True), nullable=True)
-
-    # Relationships
     user = relationship("User", back_populates="password_reset_tokens", lazy="selectin")

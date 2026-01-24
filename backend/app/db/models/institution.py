@@ -25,8 +25,6 @@ class Institution(Base):
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-
-    # Relationships
     user = relationship("User", back_populates="institutions", lazy="selectin")
     class_groups = relationship(
         "ClassGroup",

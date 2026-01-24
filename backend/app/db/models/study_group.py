@@ -7,8 +7,6 @@ from sqlalchemy.dialects.postgresql.base import UUID
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
-
-# Association table for many-to-many relationship between StudyGroup and Student
 study_group_student = Table(
     "study_group_students",
     Base.metadata,
@@ -49,8 +47,6 @@ class StudyGroup(Base):
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-
-    # Relationships
     institution = relationship(
         "Institution", back_populates="study_groups", lazy="selectin"
     )
