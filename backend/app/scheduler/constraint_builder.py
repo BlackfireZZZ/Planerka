@@ -102,7 +102,7 @@ class ConstraintBuilder:
         study_group_sizes = {}
         student_group_memberships: Dict[UUID, Dict] = {}
 
-        class_group_lessons_dict: Dict[UUID, Set[UUID]] = {}
+        class_group_lessons_dict: Dict[UUID, Dict[UUID, int]] = {}
         if class_groups:
             cg_lessons_result = await self.db.execute(
                 select(class_group_lessons).where(
@@ -114,10 +114,10 @@ class ConstraintBuilder:
             for row in cg_lessons_result.all():
                 cg_id = row.class_group_id
                 if cg_id not in class_group_lessons_dict:
-                    class_group_lessons_dict[cg_id] = set()
-                class_group_lessons_dict[cg_id].add(row.lesson_id)
+                    class_group_lessons_dict[cg_id] = {}
+                class_group_lessons_dict[cg_id][row.lesson_id] = row._mapping["count"]
 
-        study_group_lessons_dict: Dict[UUID, Set[UUID]] = {}
+        study_group_lessons_dict: Dict[UUID, Dict[UUID, int]] = {}
         if study_groups:
             sg_lessons_result = await self.db.execute(
                 select(study_group_lessons).where(
@@ -129,8 +129,8 @@ class ConstraintBuilder:
             for row in sg_lessons_result.all():
                 sgg_id = row.study_group_id
                 if sgg_id not in study_group_lessons_dict:
-                    study_group_lessons_dict[sgg_id] = set()
-                study_group_lessons_dict[sgg_id].add(row.lesson_id)
+                    study_group_lessons_dict[sgg_id] = {}
+                study_group_lessons_dict[sgg_id][row.lesson_id] = row._mapping["count"]
 
         if study_groups:
             sg_ids = [sg.id for sg in study_groups]

@@ -2,7 +2,7 @@
 StudyGroup model for storing study groups (flexible groups of students from different class groups).
 """
 
-from sqlalchemy import Column, DateTime, ForeignKey, String, Table, func
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table, func
 from sqlalchemy.dialects.postgresql.base import UUID
 from sqlalchemy.orm import relationship
 
@@ -40,6 +40,7 @@ study_group_lessons = Table(
         ForeignKey("lessons.id", ondelete="CASCADE"),
         primary_key=True,
     ),
+    Column("count", Integer, nullable=False, server_default="1"),
 )
 
 

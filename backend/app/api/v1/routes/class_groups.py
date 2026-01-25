@@ -166,15 +166,16 @@ async def assign_lessons_to_class_group(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Class group not found"
         )
-    if data.lesson_ids:
+    if data.lessons:
+        lesson_ids = [item.lesson_id for item in data.lessons]
         lessons_result = await db.execute(
             select(Lesson).where(
-                Lesson.id.in_(data.lesson_ids),
+                Lesson.id.in_(lesson_ids),
                 Lesson.institution_id == group.institution_id,
             )
         )
         lessons = lessons_result.scalars().all()
-        if len(lessons) != len(data.lesson_ids):
+        if len(lessons) != len(lesson_ids):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Some lessons not found or belong to different institution",
@@ -184,14 +185,19 @@ async def assign_lessons_to_class_group(
             class_group_lessons.c.class_group_id == group_id
         )
     )
-    for lesson_id in data.lesson_ids:
+    for item in data.lessons:
         await db.execute(
             class_group_lessons.insert().values(
-                class_group_id=group_id, lesson_id=lesson_id
+                class_group_id=group_id,
+                lesson_id=item.lesson_id,
+                count=item.count,
             )
         )
     await db.commit()
-    return [ClassGroupLessonLink(lesson_id=lid) for lid in data.lesson_ids]
+    return [
+        ClassGroupLessonLink(lesson_id=item.lesson_id, count=item.count)
+        for item in data.lessons
+    ]
 
 
 @router.get("/{group_id}/lessons", response_model=list[ClassGroupLessonLink])
@@ -212,8 +218,11 @@ async def get_class_group_lessons(
             status_code=status.HTTP_404_NOT_FOUND, detail="Class group not found"
         )
     lessons_result = await db.execute(
-        select(class_group_lessons.c.lesson_id).where(
+        select(class_group_lessons.c.lesson_id, class_group_lessons.c.count).where(
             class_group_lessons.c.class_group_id == group_id
         )
     )
-    return [ClassGroupLessonLink(lesson_id=row.lesson_id) for row in lessons_result.all()]
+    return [
+        ClassGroupLessonLink(lesson_id=row.lesson_id, count=row.count)
+        for row in lessons_result.all()
+    ]

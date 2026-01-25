@@ -2,11 +2,12 @@ import React, { useCallback, useEffect, useState } from "react";
 import { BookOpen, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { classGroupsApi } from "@/api/classGroups";
 import { studyGroupsApi } from "@/api/studyGroups";
 import { lessonsApi } from "@/api/lessons";
 import { streamsApi } from "@/api/streams";
-import type { ClassGroup } from "@/api/classGroups";
+import type { ClassGroup, ClassGroupLessonAssignment } from "@/api/classGroups";
 import type { StudyGroup } from "@/api/studyGroups";
 import type { Lesson } from "@/api/lessons";
 import {
@@ -33,7 +34,7 @@ export const GroupLessonsTab: React.FC<GroupLessonsTabProps> = ({
   const [loading, setLoading] = useState(true);
   const [assigning, setAssigning] = useState<AssigningGroup | null>(null);
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
-  const [assigningLessonIds, setAssigningLessonIds] = useState<string[]>([]);
+  const [assigningItems, setAssigningItems] = useState<ClassGroupLessonAssignment[]>([]);
   const [loadingLessons, setLoadingLessons] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -68,17 +69,17 @@ export const GroupLessonsTab: React.FC<GroupLessonsTabProps> = ({
         : studyGroupsApi.getLessons(assigning.id);
       fetch
         .then((r) => {
-          setAssigningLessonIds(r.map((x) => x.lesson_id));
+          setAssigningItems(r.map((x) => ({ lesson_id: x.lesson_id, count: x.count })));
         })
         .catch((err) => {
           console.error("Failed to load lessons for group:", err);
-          setAssigningLessonIds([]);
+          setAssigningItems([]);
         })
         .finally(() => {
           setLoadingLessons(false);
         });
     } else {
-      setAssigningLessonIds([]);
+      setAssigningItems([]);
     }
   }, [isAssignDialogOpen, assigning]);
 
@@ -90,13 +91,13 @@ export const GroupLessonsTab: React.FC<GroupLessonsTabProps> = ({
     setIsAssignDialogOpen(true);
   };
 
-  const handleAssignLessons = async (lessonIds: string[]) => {
+  const handleAssignLessons = async (items: ClassGroupLessonAssignment[]) => {
     if (!assigning) return;
     try {
       if (assigning.type === "class") {
-        await classGroupsApi.assignLessons(assigning.id, lessonIds);
+        await classGroupsApi.assignLessons(assigning.id, items);
       } else {
-        await studyGroupsApi.assignLessons(assigning.id, lessonIds);
+        await studyGroupsApi.assignLessons(assigning.id, items);
       }
       setIsAssignDialogOpen(false);
       setAssigning(null);
@@ -210,7 +211,7 @@ export const GroupLessonsTab: React.FC<GroupLessonsTabProps> = ({
           </DialogHeader>
           <AssignLessonsForm
             lessons={lessons}
-            selectedLessonIds={assigningLessonIds}
+            initialItems={assigningItems}
             loading={loadingLessons}
             onAssign={handleAssignLessons}
             onCancel={handleCancelAssign}
@@ -223,34 +224,57 @@ export const GroupLessonsTab: React.FC<GroupLessonsTabProps> = ({
 
 interface AssignLessonsFormProps {
   lessons: Lesson[];
-  selectedLessonIds: string[];
+  initialItems: ClassGroupLessonAssignment[];
   loading: boolean;
-  onAssign: (lessonIds: string[]) => void;
+  onAssign: (items: ClassGroupLessonAssignment[]) => void;
   onCancel: () => void;
 }
 
 const AssignLessonsForm: React.FC<AssignLessonsFormProps> = ({
   lessons,
-  selectedLessonIds,
+  initialItems,
   loading,
   onAssign,
   onCancel,
 }) => {
-  const [selected, setSelected] = useState<Set<string>>(new Set(selectedLessonIds));
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(initialItems.map((x) => x.lesson_id)));
+  const [counts, setCounts] = useState<Record<string, number>>(() =>
+    Object.fromEntries(initialItems.map((x) => [x.lesson_id, x.count]))
+  );
 
   useEffect(() => {
-    setSelected(new Set(selectedLessonIds));
-  }, [selectedLessonIds]);
+    setSelected(new Set(initialItems.map((x) => x.lesson_id)));
+    setCounts(Object.fromEntries(initialItems.map((x) => [x.lesson_id, x.count])));
+  }, [initialItems]);
 
   const handleToggle = (lessonId: string) => {
-    const next = new Set(selected);
-    if (next.has(lessonId)) next.delete(lessonId);
-    else next.add(lessonId);
-    setSelected(next);
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(lessonId)) {
+        next.delete(lessonId);
+        return next;
+      }
+      next.add(lessonId);
+      return next;
+    });
+    setCounts((prev) => {
+      const next = { ...prev };
+      if (!next[lessonId]) next[lessonId] = 1;
+      return next;
+    });
+  };
+
+  const handleCountChange = (lessonId: string, value: string) => {
+    const n = parseInt(value, 10);
+    setCounts((prev) => ({ ...prev, [lessonId]: isNaN(n) || n < 1 ? 1 : n }));
   };
 
   const handleSubmit = () => {
-    onAssign(Array.from(selected));
+    const items: ClassGroupLessonAssignment[] = Array.from(selected).map((lessonId) => ({
+      lesson_id: lessonId,
+      count: Math.max(1, counts[lessonId] ?? 1),
+    }));
+    onAssign(items);
   };
 
   if (loading) {
@@ -264,9 +288,9 @@ const AssignLessonsForm: React.FC<AssignLessonsFormProps> = ({
           <p className="text-sm text-muted-foreground">Нет доступных уроков</p>
         ) : (
           lessons.map((lesson) => (
-            <label
+            <div
               key={lesson.id}
-              className="flex items-center space-x-2 p-2 rounded hover:bg-accent cursor-pointer"
+              className="flex items-center gap-2 p-2 rounded hover:bg-accent"
             >
               <input
                 type="checkbox"
@@ -274,7 +298,7 @@ const AssignLessonsForm: React.FC<AssignLessonsFormProps> = ({
                 onChange={() => handleToggle(lesson.id)}
                 className="rounded"
               />
-              <div>
+              <div className="flex-1 min-w-0">
                 <span className="text-sm font-medium">{lesson.name}</span>
                 {lesson.subject_code && (
                   <span className="text-xs text-muted-foreground ml-2">
@@ -285,7 +309,21 @@ const AssignLessonsForm: React.FC<AssignLessonsFormProps> = ({
                   {lesson.duration_minutes} min
                 </span>
               </div>
-            </label>
+              {selected.has(lesson.id) && (
+                <div className="flex items-center gap-1 shrink-0">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    Кол-во:
+                  </span>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={counts[lesson.id] ?? 1}
+                    onChange={(e) => handleCountChange(lesson.id, e.target.value)}
+                    className="w-16 h-8"
+                  />
+                </div>
+              )}
+            </div>
           ))
         )}
       </div>

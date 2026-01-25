@@ -26,6 +26,16 @@ export interface StudyGroupUpdate {
   student_ids?: string[];
 }
 
+export interface StudyGroupLessonLink {
+  lesson_id: string;
+  count: number;
+}
+
+export interface StudyGroupLessonAssignment {
+  lesson_id: string;
+  count: number;
+}
+
 export const studyGroupsApi = {
   create: async (
     institutionId: string,
@@ -73,18 +83,19 @@ export const studyGroupsApi = {
 
   assignLessons: async (
     studyGroupId: string,
-    lessonIds: string[],
-  ): Promise<void> => {
-    await apiClient.post(
+    items: StudyGroupLessonAssignment[],
+  ): Promise<StudyGroupLessonLink[]> => {
+    const response = await apiClient.post<StudyGroupLessonLink[]>(
       `/api/v1/study-groups/${studyGroupId}/assign-lessons`,
-      { lesson_ids: lessonIds },
+      { lessons: items },
     );
+    return response.data;
   },
 
   getLessons: async (
     studyGroupId: string,
-  ): Promise<{ lesson_id: string }[]> => {
-    const response = await apiClient.get<{ lesson_id: string }[]>(
+  ): Promise<StudyGroupLessonLink[]> => {
+    const response = await apiClient.get<StudyGroupLessonLink[]>(
       `/api/v1/study-groups/${studyGroupId}/lessons`,
     );
     return response.data;

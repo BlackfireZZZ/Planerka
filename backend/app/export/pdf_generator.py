@@ -2,9 +2,10 @@
 Module for generating PDF schedules.
 """
 
+import logging
+import os
 from io import BytesIO
 from typing import List
-from uuid import UUID
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
@@ -16,6 +17,65 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 
 from app.db.models.schedule_entry import ScheduleEntry
 
+logger = logging.getLogger(__name__)
+
+# Имена шрифтов с поддержкой кириллицы (после регистрации)
+_FONT_REG = "PdfCyrillic"
+_FONT_BOLD = "PdfCyrillic-Bold"
+_cyrillic_fonts_registered: bool | None = None  # None=ещё не пробовали, True/False=результат
+
+
+def _register_cyrillic_fonts() -> bool:
+    """Регистрирует шрифты с поддержкой кириллицы. Возвращает True при успехе."""
+    global _cyrillic_fonts_registered
+    if _cyrillic_fonts_registered is not None:
+        return _cyrillic_fonts_registered
+    # DejaVu (Linux/Docker, пакет fonts-dejavu-core)
+    paths_reg = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/TTF/DejaVuSans.ttf",
+    ]
+    paths_bold = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+    ]
+    # Arial (Windows)
+    win = os.environ.get("WINDIR", "C:\\Windows")
+    paths_reg.append(os.path.join(win, "Fonts", "arial.ttf"))
+    paths_bold.append(os.path.join(win, "Fonts", "arialbd.ttf"))
+
+    reg_path = None
+    for p in paths_reg:
+        if os.path.isfile(p):
+            try:
+                pdfmetrics.registerFont(TTFont(_FONT_REG, p))
+                reg_path = p
+                break
+            except Exception as e:
+                logger.warning("Не удалось загрузить шрифт %s: %s", p, e)
+    if not reg_path:
+        logger.warning(
+            "Шрифт с кириллицей не найден. Кириллица в PDF может отображаться некорректно."
+        )
+        _cyrillic_fonts_registered = False
+        return False
+
+    for p in paths_bold:
+        if os.path.isfile(p):
+            try:
+                pdfmetrics.registerFont(TTFont(_FONT_BOLD, p))
+                break
+            except Exception as e:
+                logger.warning("Не удалось загрузить жирный шрифт %s: %s", p, e)
+    else:
+        # жирный не найден — используем тот же файл, что и для обычного
+        try:
+            pdfmetrics.registerFont(TTFont(_FONT_BOLD, reg_path))
+        except Exception:
+            pass
+    _cyrillic_fonts_registered = True
+    return True
+
 
 class PDFScheduleExporter:
     """
@@ -24,6 +84,9 @@ class PDFScheduleExporter:
 
     def __init__(self):
         self.styles = getSampleStyleSheet()
+        self._cyrillic_ok = _register_cyrillic_fonts()
+        self._font = _FONT_REG if self._cyrillic_ok else "Helvetica"
+        self._font_bold = _FONT_BOLD if self._cyrillic_ok else "Helvetica-Bold"
         self._setup_styles()
 
     def _setup_styles(self):
@@ -58,17 +121,26 @@ class PDFScheduleExporter:
             BytesIO object with PDF content
         """
         buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=landscape(A4))
+        margin = 1.2 * cm
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=landscape(A4),
+            leftMargin=margin,
+            rightMargin=margin,
+            topMargin=margin,
+            bottomMargin=margin,
+        )
         story = []
         title_style = ParagraphStyle(
             "CustomTitle",
             parent=self.styles["Heading1"],
-            fontSize=24,
+            fontName=self._font,
+            fontSize=22,
             textColor=colors.HexColor("#1a1a1a"),
-            spaceAfter=30,
+            spaceAfter=20,
         )
         story.append(Paragraph(schedule_name, title_style))
-        story.append(Spacer(1, 0.5 * cm))
+        story.append(Spacer(1, 0.4 * cm))
         days = [
             "Monday",
             "Tuesday",
@@ -91,9 +163,10 @@ class PDFScheduleExporter:
             day_style = ParagraphStyle(
                 "DayTitle",
                 parent=self.styles["Heading2"],
-                fontSize=16,
+                fontName=self._font,
+                fontSize=14,
                 textColor=colors.HexColor("#2c3e50"),
-                spaceAfter=10,
+                spaceAfter=8,
             )
             story.append(Paragraph(day_name, day_style))
             day_entries[day_name].sort(
@@ -133,7 +206,9 @@ class PDFScheduleExporter:
                 )
 
             table = Table(
-                table_data, colWidths=[3 * cm, 4 * cm, 4 * cm, 3 * cm, 3 * cm]
+                table_data,
+                colWidths=[2.8 * cm, 3.8 * cm, 3.8 * cm, 2.8 * cm, 2.8 * cm],
+                repeatRows=1,
             )
             table.setStyle(
                 TableStyle(
@@ -141,9 +216,14 @@ class PDFScheduleExporter:
                         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#34495e")),
                         ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
                         ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                        ("FONTSIZE", (0, 0), (-1, 0), 12),
-                        ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+                        ("FONTNAME", (0, 0), (-1, 0), self._font_bold),
+                        ("FONTSIZE", (0, 0), (-1, 0), 10),
+                        ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+                        ("TOPPADDING", (0, 0), (-1, 0), 8),
+                        ("FONTNAME", (0, 1), (-1, -1), self._font),
+                        ("FONTSIZE", (0, 1), (-1, -1), 9),
+                        ("TOPPADDING", (0, 1), (-1, -1), 4),
+                        ("BOTTOMPADDING", (0, 1), (-1, -1), 4),
                         ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
                         ("GRID", (0, 0), (-1, -1), 1, colors.black),
                         (
@@ -156,7 +236,7 @@ class PDFScheduleExporter:
                 )
             )
             story.append(table)
-            story.append(Spacer(1, 0.5 * cm))
+            story.append(Spacer(1, 0.4 * cm))
 
         doc.build(story)
         buffer.seek(0)
@@ -173,18 +253,27 @@ class PDFScheduleExporter:
     ) -> BytesIO:
         """Generates PDF schedule for a teacher."""
         buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=A4)
+        margin = 1.2 * cm
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            leftMargin=margin,
+            rightMargin=margin,
+            topMargin=margin,
+            bottomMargin=margin,
+        )
         story = []
 
         title_style = ParagraphStyle(
             "CustomTitle",
             parent=self.styles["Heading1"],
-            fontSize=20,
+            fontName=self._font,
+            fontSize=18,
             textColor=colors.HexColor("#1a1a1a"),
-            spaceAfter=20,
+            spaceAfter=16,
         )
         story.append(Paragraph(f"Schedule: {teacher_name}", title_style))
-        story.append(Spacer(1, 0.5 * cm))
+        story.append(Spacer(1, 0.4 * cm))
         days = [
             "Monday",
             "Tuesday",
@@ -209,7 +298,8 @@ class PDFScheduleExporter:
             day_style = ParagraphStyle(
                 "DayTitle",
                 parent=self.styles["Heading2"],
-                fontSize=14,
+                fontName=self._font,
+                fontSize=12,
                 textColor=colors.HexColor("#2c3e50"),
             )
             story.append(Paragraph(day_name, day_style))
@@ -235,14 +325,21 @@ class PDFScheduleExporter:
                     ]
                 )
 
-            table = Table(table_data, colWidths=[3 * cm, 5 * cm, 4 * cm, 3 * cm])
+            table = Table(
+                table_data,
+                colWidths=[2.8 * cm, 6 * cm, 4 * cm, 2.8 * cm],
+                repeatRows=1,
+            )
             table.setStyle(
                 TableStyle(
                     [
                         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#34495e")),
                         ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
                         ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("FONTNAME", (0, 0), (-1, 0), self._font_bold),
+                        ("FONTSIZE", (0, 0), (-1, 0), 10),
+                        ("FONTNAME", (0, 1), (-1, -1), self._font),
+                        ("FONTSIZE", (0, 1), (-1, -1), 9),
                         ("GRID", (0, 0), (-1, -1), 1, colors.black),
                     ]
                 )

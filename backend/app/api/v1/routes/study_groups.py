@@ -343,15 +343,16 @@ async def assign_lessons_to_study_group(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Study group not found"
         )
-    if data.lesson_ids:
+    if data.lessons:
+        lesson_ids = [item.lesson_id for item in data.lessons]
         lessons_result = await db.execute(
             select(Lesson).where(
-                Lesson.id.in_(data.lesson_ids),
+                Lesson.id.in_(lesson_ids),
                 Lesson.institution_id == study_group.institution_id,
             )
         )
         lessons = lessons_result.scalars().all()
-        if len(lessons) != len(data.lesson_ids):
+        if len(lessons) != len(lesson_ids):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Some lessons not found or belong to different institution",
@@ -361,14 +362,19 @@ async def assign_lessons_to_study_group(
             study_group_lessons.c.study_group_id == study_group_id
         )
     )
-    for lesson_id in data.lesson_ids:
+    for item in data.lessons:
         await db.execute(
             study_group_lessons.insert().values(
-                study_group_id=study_group_id, lesson_id=lesson_id
+                study_group_id=study_group_id,
+                lesson_id=item.lesson_id,
+                count=item.count,
             )
         )
     await db.commit()
-    return [StudyGroupLessonLink(lesson_id=lid) for lid in data.lesson_ids]
+    return [
+        StudyGroupLessonLink(lesson_id=item.lesson_id, count=item.count)
+        for item in data.lessons
+    ]
 
 
 @router.get(
@@ -393,11 +399,11 @@ async def get_study_group_lessons(
             status_code=status.HTTP_404_NOT_FOUND, detail="Study group not found"
         )
     lessons_result = await db.execute(
-        select(study_group_lessons.c.lesson_id).where(
+        select(study_group_lessons.c.lesson_id, study_group_lessons.c.count).where(
             study_group_lessons.c.study_group_id == study_group_id
         )
     )
     return [
-        StudyGroupLessonLink(lesson_id=row.lesson_id)
+        StudyGroupLessonLink(lesson_id=row.lesson_id, count=row.count)
         for row in lessons_result.all()
     ]

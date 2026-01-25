@@ -5,6 +5,7 @@ Module for converting schedule constraints to CNF formula.
 from typing import Dict, List, Set, Tuple
 from uuid import UUID
 
+from pysat.card import CardEnc, EncType
 from pysat.formula import CNF
 from pysat.solvers import Solver
 
@@ -33,8 +34,8 @@ class ScheduleEncoder:
         rooms: List[UUID],
         time_slots: List[UUID],
         teacher_lessons: Dict[int, Set[UUID]],
-        class_group_lessons: Dict[UUID, Set[UUID]],
-        study_group_lessons: Dict[UUID, Set[UUID]],
+        class_group_lessons: Dict[UUID, Dict[UUID, int]],
+        study_group_lessons: Dict[UUID, Dict[UUID, int]],
     ) -> None:
         """
         Creates boolean variables for all possible combinations.
@@ -57,10 +58,10 @@ class ScheduleEncoder:
                 for group_id in all_groups:
                     group_type = self.group_types.get(group_id, "class_group")
                     if group_type == "class_group":
-                        if lesson_id not in class_group_lessons.get(group_id, set()):
+                        if lesson_id not in class_group_lessons.get(group_id, {}):
                             continue
                     else:
-                        if lesson_id not in study_group_lessons.get(group_id, set()):
+                        if lesson_id not in study_group_lessons.get(group_id, {}):
                             continue
 
                     for room_id in rooms:
@@ -79,19 +80,20 @@ class ScheduleEncoder:
 
     def get_infeasible_pairs(
         self,
-        class_group_lessons: Dict[UUID, Set[UUID]],
-        study_group_lessons: Dict[UUID, Set[UUID]],
+        class_group_lessons: Dict[UUID, Dict[UUID, int]],
+        study_group_lessons: Dict[UUID, Dict[UUID, int]],
         room_capacities: Dict[UUID, int],
         class_group_sizes: Dict[UUID, int],
         study_group_sizes: Dict[UUID, int],
     ) -> List[Tuple[UUID, UUID, str]]:
         """
         Returns (lesson_id, group_id, reason) for (lesson, group) pairs that have
-        no valid variable (no teacher) or only variables with insufficient room capacity.
+        no valid variable (no teacher), only variables with insufficient room capacity,
+        or fewer valid (teacher, room, time slot) combinations than the required count.
         """
         result: List[Tuple[UUID, UUID, str]] = []
-        for cg_id, lesson_ids in class_group_lessons.items():
-            for lesson_id in lesson_ids:
+        for cg_id, lessons_dict in class_group_lessons.items():
+            for lesson_id, count in lessons_dict.items():
                 vars_for = [
                     (var, key)
                     for key, var in self.variables.items()
@@ -102,14 +104,25 @@ class ScheduleEncoder:
                         (lesson_id, cg_id, "no teacher is assigned to teach this lesson for this group")
                     )
                     continue
+                if len(vars_for) < count:
+                    result.append(
+                        (
+                            lesson_id,
+                            cg_id,
+                            "need {} lesson placements but only {} valid (teacher, room, time slot) combination(s) — add more time slots or resources".format(
+                                count, len(vars_for)
+                            ),
+                        )
+                    )
+                    continue
                 cap = class_group_sizes.get(cg_id, 0)
                 if any(room_capacities.get(key[3], 0) >= cap for _, key in vars_for):
                     continue
                 result.append(
                     (lesson_id, cg_id, "no room has sufficient capacity for this group")
                 )
-        for sg_id, lesson_ids in study_group_lessons.items():
-            for lesson_id in lesson_ids:
+        for sg_id, lessons_dict in study_group_lessons.items():
+            for lesson_id, count in lessons_dict.items():
                 vars_for = [
                     (var, key)
                     for key, var in self.variables.items()
@@ -118,6 +131,17 @@ class ScheduleEncoder:
                 if not vars_for:
                     result.append(
                         (lesson_id, sg_id, "no teacher is assigned to teach this lesson for this group")
+                    )
+                    continue
+                if len(vars_for) < count:
+                    result.append(
+                        (
+                            lesson_id,
+                            sg_id,
+                            "need {} lesson placements but only {} valid (teacher, room, time slot) combination(s) — add more time slots or resources".format(
+                                count, len(vars_for)
+                            ),
+                        )
                     )
                     continue
                 cap = study_group_sizes.get(sg_id, 0)
@@ -140,8 +164,8 @@ class ScheduleEncoder:
         class_group_sizes: Dict[UUID, int],
         study_group_sizes: Dict[UUID, int],
         student_group_memberships: Dict[UUID, Dict],
-        class_group_lessons: Dict[UUID, Set[UUID]],
-        study_group_lessons: Dict[UUID, Set[UUID]],
+        class_group_lessons: Dict[UUID, Dict[UUID, int]],
+        study_group_lessons: Dict[UUID, Dict[UUID, int]],
         *,
         skip_conflicts: bool = False,
     ) -> None:
@@ -149,7 +173,7 @@ class ScheduleEncoder:
         Encodes mandatory constraints (hard constraints).
 
         Hard constraints:
-        1. Each (lesson_id, group_id) pair must be assigned exactly once
+        1. Each (lesson_id, group_id) pair must be assigned exactly N times (N=count)
         2. Teacher cannot be in two places at the same time (conflict: teacher overlap)
         3. Same class/group cannot have two lessons at the same time (per group_id)
         4. Room cannot be occupied by two lessons simultaneously (conflict: room)
@@ -159,29 +183,41 @@ class ScheduleEncoder:
         If skip_conflicts=True, only (1) and (6) are applied (for diagnostic use).
         """
         for cg_id in class_groups:
-            for lesson_id in class_group_lessons.get(cg_id, set()):
+            for lesson_id, count in class_group_lessons.get(cg_id, {}).items():
                 lesson_vars = [
                     var
                     for (l_id, t_id, g_id, r_id, ts_id), var in self.variables.items()
                     if l_id == lesson_id and g_id == cg_id
                 ]
-                if lesson_vars:
-                    self.cnf.append(lesson_vars)
-                    for i in range(len(lesson_vars)):
-                        for j in range(i + 1, len(lesson_vars)):
-                            self.cnf.append([-lesson_vars[i], -lesson_vars[j]])
+                if len(lesson_vars) < count:
+                    continue
+                card_cnf = CardEnc.equals(
+                    lits=lesson_vars,
+                    bound=count,
+                    top_id=self.next_var - 1,
+                    encoding=EncType.seqcounter,
+                )
+                for cl in card_cnf.clauses:
+                    self.cnf.append(cl)
+                self.next_var = max(self.next_var, card_cnf.nv + 1)
         for sg_id in study_groups:
-            for lesson_id in study_group_lessons.get(sg_id, set()):
+            for lesson_id, count in study_group_lessons.get(sg_id, {}).items():
                 lesson_vars = [
                     var
                     for (l_id, t_id, g_id, r_id, ts_id), var in self.variables.items()
                     if l_id == lesson_id and g_id == sg_id
                 ]
-                if lesson_vars:
-                    self.cnf.append(lesson_vars)
-                    for i in range(len(lesson_vars)):
-                        for j in range(i + 1, len(lesson_vars)):
-                            self.cnf.append([-lesson_vars[i], -lesson_vars[j]])
+                if len(lesson_vars) < count:
+                    continue
+                card_cnf = CardEnc.equals(
+                    lits=lesson_vars,
+                    bound=count,
+                    top_id=self.next_var - 1,
+                    encoding=EncType.seqcounter,
+                )
+                for cl in card_cnf.clauses:
+                    self.cnf.append(cl)
+                self.next_var = max(self.next_var, card_cnf.nv + 1)
 
         if not skip_conflicts:
             # Conflict: teacher cannot be in two places at the same time

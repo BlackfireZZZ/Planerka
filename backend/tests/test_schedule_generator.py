@@ -34,13 +34,13 @@ def test_two_groups_same_slot_no_conflict(use_class_groups):
     if use_class_groups:
         class_groups = [g1, g2]
         study_groups = []
-        class_group_lessons = {g1: {lu1}, g2: {lu2}}
+        class_group_lessons = {g1: {lu1: 1}, g2: {lu2: 1}}
         study_group_lessons = {}
     else:
         class_groups = []
         study_groups = [g1, g2]
         class_group_lessons = {}
-        study_group_lessons = {g1: {lu1}, g2: {lu2}}
+        study_group_lessons = {g1: {lu1: 1}, g2: {lu2: 1}}
 
     data = {
         "lessons": [lu1, lu2],
@@ -98,7 +98,7 @@ def test_unsat_returns_diagnostic():
         "rooms": [r1],
         "time_slots": [ts1],
         "teacher_lessons": {1: {lu1, lu2}},
-        "class_group_lessons": {cg1: {lu1}, cg2: {lu2}},
+        "class_group_lessons": {cg1: {lu1: 1}, cg2: {lu2: 1}},
         "study_group_lessons": {},
         "room_capacities": {r1: 30},
         "class_group_sizes": {cg1: 10, cg2: 10},
@@ -125,3 +125,54 @@ def test_unsat_returns_diagnostic():
     # Should mention resource conflict (teacher/room/student), not a generic message
     assert "resource" in err.lower() or "conflict" in err.lower()
     assert "Constraints may be too restrictive" not in (err or "")
+
+
+def test_count_two_slots_for_one_lesson_group():
+    """
+    One class group, one lesson type with count=2. Need 2 time slots (or 2 rooms, 2 teachers)
+    so the scheduler places exactly 2 entries for that (lesson, group).
+    """
+    lu1 = uuid.uuid4()
+    cg1 = uuid.uuid4()
+    r1, r2 = uuid.uuid4(), uuid.uuid4()
+    ts1, ts2 = uuid.uuid4(), uuid.uuid4()
+    data = {
+        "lessons": [lu1],
+        "teachers": [1],
+        "class_groups": [cg1],
+        "study_groups": [],
+        "rooms": [r1, r2],
+        "time_slots": [ts1, ts2],
+        "teacher_lessons": {1: {lu1}},
+        "class_group_lessons": {cg1: {lu1: 2}},
+        "study_group_lessons": {},
+        "room_capacities": {r1: 30, r2: 30},
+        "class_group_sizes": {cg1: 10},
+        "study_group_sizes": {},
+        "student_group_memberships": {},
+        "constraints": [],
+    }
+
+    async def run_generate():
+        db = MagicMock()
+        gen = ScheduleGenerator(db)
+        with patch.object(
+            gen.constraint_builder,
+            "build_from_institution",
+            new_callable=AsyncMock,
+            return_value=data,
+        ):
+            return await gen.generate(uuid.uuid4(), timeout=15)
+
+    ok, entries, err = _run(run_generate())
+    assert ok is True, f"expected success, got err={err}"
+    assert entries is not None
+    assert len(entries) == 2
+    for e in entries:
+        assert e["lesson_id"] == lu1
+        assert e["class_group_id"] == cg1
+        assert e["study_group_id"] is None
+    time_slots_used = {e["time_slot_id"] for e in entries}
+    assert len(time_slots_used) == 2
+    assert ts1 in time_slots_used
+    assert ts2 in time_slots_used

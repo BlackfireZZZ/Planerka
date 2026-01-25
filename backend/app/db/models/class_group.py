@@ -23,6 +23,7 @@ class_group_lessons = Table(
         ForeignKey("lessons.id", ondelete="CASCADE"),
         primary_key=True,
     ),
+    Column("count", Integer, nullable=False, server_default="1"),
 )
 
 

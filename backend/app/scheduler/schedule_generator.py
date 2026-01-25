@@ -2,7 +2,10 @@
 Main class for schedule generation.
 """
 
-from typing import Dict, List, Optional
+import json
+import logging
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +13,28 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.scheduler.constraint_builder import ConstraintBuilder
 from app.scheduler.sat_encoder import ScheduleEncoder
 from app.scheduler.sat_solver import ScheduleSolver
+
+logger = logging.getLogger(__name__)
+
+
+def _serialize_for_debug_log(obj: Any) -> Any:
+    """Convert input data to JSON-serializable form for debug logging."""
+    if obj is None:
+        return None
+    if isinstance(obj, UUID):
+        return str(obj)
+    if isinstance(obj, (int, float, str, bool)):
+        return obj
+    if isinstance(obj, set):
+        return [_serialize_for_debug_log(x) for x in obj]
+    if isinstance(obj, list):
+        return [_serialize_for_debug_log(x) for x in obj]
+    if isinstance(obj, dict):
+        return {
+            (str(k) if isinstance(k, UUID) else k): _serialize_for_debug_log(v)
+            for k, v in obj.items()
+        }
+    return str(obj)
 
 
 class ScheduleGenerator:
@@ -50,26 +75,26 @@ class ScheduleGenerator:
 
         class_group_lessons = data.get("class_group_lessons", {})
         study_group_lessons = data.get("study_group_lessons", {})
-        total_pairs = sum(len(s) for s in class_group_lessons.values()) + sum(
-            len(s) for s in study_group_lessons.values()
-        )
-        if total_pairs == 0:
+        total_slots = sum(
+            c for d in class_group_lessons.values() for c in d.values()
+        ) + sum(c for d in study_group_lessons.values() for c in d.values())
+        if total_slots == 0:
             return (
                 False,
                 "No lesson–group assignments. Assign lessons to class groups and/or "
                 "study groups in the Group Lessons tab.",
             )
         at_least_one_teachable = False
-        for cg_id, lesson_ids in class_group_lessons.items():
-            for lid in lesson_ids:
+        for cg_id, lessons_dict in class_group_lessons.items():
+            for lid in lessons_dict:
                 if any(lid in data["teacher_lessons"].get(tid, set()) for tid in teachers_with_lessons):
                     at_least_one_teachable = True
                     break
             if at_least_one_teachable:
                 break
         if not at_least_one_teachable:
-            for sg_id, lesson_ids in study_group_lessons.items():
-                for lid in lesson_ids:
+            for sg_id, lessons_dict in study_group_lessons.items():
+                for lid in lessons_dict:
                     if any(lid in data["teacher_lessons"].get(tid, set()) for tid in teachers_with_lessons):
                         at_least_one_teachable = True
                         break
@@ -116,6 +141,23 @@ class ScheduleGenerator:
         if not is_valid:
             return False, None, error
         data = await self.constraint_builder.build_from_institution(institution_id)
+
+        # --- ВРЕМЕННОЕ ЛОГИРОВАНИЕ: входные данные перед генерацией (удалить после отладки) ---
+        _debug_payload = {
+            "institution_id": str(institution_id),
+            "timeout": timeout,
+            "data": data,
+        }
+        _debug_serialized = _serialize_for_debug_log(_debug_payload)
+        _debug_path = Path(__file__).resolve().parent.parent.parent / "schedule_generation_input_debug.json"
+        try:
+            with open(_debug_path, "w", encoding="utf-8") as f:
+                json.dump(_debug_serialized, f, ensure_ascii=False, indent=2)
+            logger.info("Schedule generation input logged to %s", _debug_path)
+        except Exception as e:
+            logger.warning("Could not write schedule input debug file: %s", e)
+        # --- конец временного логирования ---
+
         encoder = ScheduleEncoder()
         study_groups = data.get("study_groups", [])
         class_group_lessons = data.get("class_group_lessons", {})

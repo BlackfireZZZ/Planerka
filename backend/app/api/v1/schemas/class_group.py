@@ -36,13 +36,21 @@ class ClassGroupResponse(BaseModel):
         from_attributes = True
 
 
+class ClassGroupLessonItem(BaseModel):
+    """Single lesson assignment with count."""
+
+    lesson_id: UUID
+    count: int = Field(..., ge=1)
+
+
 class ClassGroupLessonAssign(BaseModel):
     """Schema for assigning lessons to a class group."""
 
-    lesson_ids: list[UUID] = Field(default_factory=list, min_length=0)
+    lessons: list[ClassGroupLessonItem] = Field(default_factory=list, min_length=0)
 
 
 class ClassGroupLessonLink(BaseModel):
     """Response schema for class group-lesson association."""
 
     lesson_id: UUID
+    count: int

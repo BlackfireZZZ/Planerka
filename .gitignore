@@ -1,1 +1,4 @@
 .idea/
+
+# Временный отладочный вывод генератора расписания
+backend/schedule_generation_input_debug.json

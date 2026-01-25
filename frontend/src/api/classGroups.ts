@@ -19,6 +19,16 @@ export interface ClassGroupUpdate {
   student_count?: number;
 }
 
+export interface ClassGroupLessonLink {
+  lesson_id: string;
+  count: number;
+}
+
+export interface ClassGroupLessonAssignment {
+  lesson_id: string;
+  count: number;
+}
+
 export const classGroupsApi = {
   create: async (
     institutionId: string,
@@ -59,18 +69,17 @@ export const classGroupsApi = {
 
   assignLessons: async (
     groupId: string,
-    lessonIds: string[],
-  ): Promise<void> => {
-    await apiClient.post(
+    items: ClassGroupLessonAssignment[],
+  ): Promise<ClassGroupLessonLink[]> => {
+    const response = await apiClient.post<ClassGroupLessonLink[]>(
       `/api/v1/class-groups/${groupId}/assign-lessons`,
-      { lesson_ids: lessonIds },
+      { lessons: items },
     );
+    return response.data;
   },
 
-  getLessons: async (
-    groupId: string,
-  ): Promise<{ lesson_id: string }[]> => {
-    const response = await apiClient.get<{ lesson_id: string }[]>(
+  getLessons: async (groupId: string): Promise<ClassGroupLessonLink[]> => {
+    const response = await apiClient.get<ClassGroupLessonLink[]>(
       `/api/v1/class-groups/${groupId}/lessons`,
     );
     return response.data;
