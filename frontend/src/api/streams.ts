@@ -44,10 +44,7 @@ export const streamsApi = {
   },
 
   update: async (id: string, data: StreamUpdate): Promise<Stream> => {
-    const response = await apiClient.put<Stream>(
-      `/api/v1/streams/${id}`,
-      data,
-    );
+    const response = await apiClient.put<Stream>(`/api/v1/streams/${id}`, data);
     return response.data;
   },
 

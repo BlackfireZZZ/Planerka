@@ -76,7 +76,9 @@ export const DashboardPage: React.FC = () => {
       <div className="p-8">
         <h1 className="text-3xl font-bold mb-6">Панель управления</h1>
         <div className="text-center py-12">
-          <p className="text-muted-foreground">Загрузка данных панели управления...</p>
+          <p className="text-muted-foreground">
+            Загрузка данных панели управления...
+          </p>
         </div>
       </div>
     );
@@ -151,7 +153,8 @@ export const DashboardPage: React.FC = () => {
           <Card className="p-6">
             <h2 className="text-xl font-semibold mb-4">Начать работу</h2>
             <p className="text-muted-foreground mb-4">
-              У вас пока нет учреждений. Создайте первое учреждение, чтобы начать управлять расписаниями.
+              У вас пока нет учреждений. Создайте первое учреждение, чтобы
+              начать управлять расписаниями.
             </p>
             <Link to="/institutions/new">
               <Button className="w-full">

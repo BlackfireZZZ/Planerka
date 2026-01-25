@@ -87,7 +87,10 @@ class ScheduleGenerator:
         at_least_one_teachable = False
         for cg_id, lessons_dict in class_group_lessons.items():
             for lid in lessons_dict:
-                if any(lid in data["teacher_lessons"].get(tid, set()) for tid in teachers_with_lessons):
+                if any(
+                    lid in data["teacher_lessons"].get(tid, set())
+                    for tid in teachers_with_lessons
+                ):
                     at_least_one_teachable = True
                     break
             if at_least_one_teachable:
@@ -95,7 +98,10 @@ class ScheduleGenerator:
         if not at_least_one_teachable:
             for sg_id, lessons_dict in study_group_lessons.items():
                 for lid in lessons_dict:
-                    if any(lid in data["teacher_lessons"].get(tid, set()) for tid in teachers_with_lessons):
+                    if any(
+                        lid in data["teacher_lessons"].get(tid, set())
+                        for tid in teachers_with_lessons
+                    ):
                         at_least_one_teachable = True
                         break
                 if at_least_one_teachable:
@@ -149,7 +155,10 @@ class ScheduleGenerator:
             "data": data,
         }
         _debug_serialized = _serialize_for_debug_log(_debug_payload)
-        _debug_path = Path(__file__).resolve().parent.parent.parent / "schedule_generation_input_debug.json"
+        _debug_path = (
+            Path(__file__).resolve().parent.parent.parent
+            / "schedule_generation_input_debug.json"
+        )
         try:
             with open(_debug_path, "w", encoding="utf-8") as f:
                 json.dump(_debug_serialized, f, ensure_ascii=False, indent=2)

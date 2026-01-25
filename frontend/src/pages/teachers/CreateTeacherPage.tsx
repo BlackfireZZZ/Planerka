@@ -104,9 +104,7 @@ export const CreateTeacherPage: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle>Создать преподавателя</CardTitle>
-          <CardDescription>
-            Введите данные нового преподавателя
-          </CardDescription>
+          <CardDescription>Введите данные нового преподавателя</CardDescription>
         </CardHeader>
         <CardContent>
           {error && (
@@ -145,7 +143,10 @@ export const CreateTeacherPage: React.FC = () => {
                   <FormItem>
                     <FormLabel>Полное имя</FormLabel>
                     <FormControl>
-                      <Input placeholder="Полное имя преподавателя" {...field} />
+                      <Input
+                        placeholder="Полное имя преподавателя"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

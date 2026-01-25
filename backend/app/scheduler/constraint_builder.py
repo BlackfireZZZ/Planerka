@@ -137,10 +137,14 @@ class ConstraintBuilder:
             sg_students_result = await self.db.execute(
                 select(Student, study_group_student.c.study_group_id)
                 .select_from(Student)
-                .join(study_group_student, Student.id == study_group_student.c.student_id)
+                .join(
+                    study_group_student, Student.id == study_group_student.c.student_id
+                )
                 .where(study_group_student.c.study_group_id.in_(sg_ids))
             )
-            sg_to_students: Dict[UUID, List[Student]] = {sg.id: [] for sg in study_groups}
+            sg_to_students: Dict[UUID, List[Student]] = {
+                sg.id: [] for sg in study_groups
+            }
             for student, sg_id in sg_students_result.all():
                 sg_to_students[sg_id].append(student)
             for sg in study_groups:

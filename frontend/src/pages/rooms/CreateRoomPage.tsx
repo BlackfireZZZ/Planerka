@@ -28,7 +28,9 @@ import axios from "axios";
 
 const createRoomSchema = z.object({
   name: z.string().min(1, { message: "Название обязательно" }),
-  capacity: z.number().min(1, { message: "Вместимость должна быть не менее 1" }),
+  capacity: z
+    .number()
+    .min(1, { message: "Вместимость должна быть не менее 1" }),
   room_type: z.string().optional(),
   equipment: z.string().optional(),
 });

@@ -13,9 +13,9 @@ from app.api.v1.routes import (
     ping,
     rooms,
     schedules,
+    streams,
     students,
     study_groups,
-    streams,
     teachers,
     time_slots,
 )
@@ -44,6 +44,8 @@ async def lifespan(app: FastAPI):
     yield
     await engine.dispose()
     logger.info("🔌 Database connections closed")
+
+
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,

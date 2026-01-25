@@ -54,7 +54,9 @@ export const VerifyEmailPage: React.FC = () => {
     <Card className="w-full">
       <CardHeader>
         <CardTitle>Подтверждение email</CardTitle>
-        <CardDescription>Подтверждение вашего адреса электронной почты</CardDescription>
+        <CardDescription>
+          Подтверждение вашего адреса электронной почты
+        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center justify-center py-6">
         {status === "loading" && (

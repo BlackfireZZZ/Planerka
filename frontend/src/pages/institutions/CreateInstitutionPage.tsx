@@ -60,9 +60,7 @@ export const CreateInstitutionPage: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle>Создать учреждение</CardTitle>
-          <CardDescription>
-            Введите название нового учреждения
-          </CardDescription>
+          <CardDescription>Введите название нового учреждения</CardDescription>
         </CardHeader>
         <CardContent>
           {error && (

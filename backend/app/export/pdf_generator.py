@@ -22,7 +22,9 @@ logger = logging.getLogger(__name__)
 # Имена шрифтов с поддержкой кириллицы (после регистрации)
 _FONT_REG = "PdfCyrillic"
 _FONT_BOLD = "PdfCyrillic-Bold"
-_cyrillic_fonts_registered: bool | None = None  # None=ещё не пробовали, True/False=результат
+_cyrillic_fonts_registered: bool | None = (
+    None  # None=ещё не пробовали, True/False=результат
+)
 
 
 def _register_cyrillic_fonts() -> bool:
@@ -182,8 +184,16 @@ class PDFScheduleExporter:
                 time_slot = time_slots.get(entry.time_slot_id)
                 lesson = lessons.get(entry.lesson_id)
                 teacher = teachers.get(entry.teacher_id)
-                class_group = class_groups.get(entry.class_group_id) if entry.class_group_id else None
-                study_group = study_groups.get(entry.study_group_id) if entry.study_group_id else None
+                class_group = (
+                    class_groups.get(entry.class_group_id)
+                    if entry.class_group_id
+                    else None
+                )
+                study_group = (
+                    study_groups.get(entry.study_group_id)
+                    if entry.study_group_id
+                    else None
+                )
                 room = rooms.get(entry.room_id)
 
                 time_str = (

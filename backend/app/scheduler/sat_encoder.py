@@ -101,7 +101,11 @@ class ScheduleEncoder:
                 ]
                 if not vars_for:
                     result.append(
-                        (lesson_id, cg_id, "no teacher is assigned to teach this lesson for this group")
+                        (
+                            lesson_id,
+                            cg_id,
+                            "no teacher is assigned to teach this lesson for this group",
+                        )
                     )
                     continue
                 if len(vars_for) < count:
@@ -130,7 +134,11 @@ class ScheduleEncoder:
                 ]
                 if not vars_for:
                     result.append(
-                        (lesson_id, sg_id, "no teacher is assigned to teach this lesson for this group")
+                        (
+                            lesson_id,
+                            sg_id,
+                            "no teacher is assigned to teach this lesson for this group",
+                        )
                     )
                     continue
                 if len(vars_for) < count:
@@ -225,19 +233,33 @@ class ScheduleEncoder:
                 for time_slot_id in time_slots:
                     teacher_time_vars = [
                         var
-                        for (l_id, t_id, cg_id, r_id, ts_id), var in self.variables.items()
+                        for (
+                            l_id,
+                            t_id,
+                            cg_id,
+                            r_id,
+                            ts_id,
+                        ), var in self.variables.items()
                         if t_id == teacher_id and ts_id == time_slot_id
                     ]
                     for i in range(len(teacher_time_vars)):
                         for j in range(i + 1, len(teacher_time_vars)):
-                            self.cnf.append([-teacher_time_vars[i], -teacher_time_vars[j]])
+                            self.cnf.append(
+                                [-teacher_time_vars[i], -teacher_time_vars[j]]
+                            )
             # Conflict: same class/group cannot have two lessons at the same time (per group_id)
             all_groups = class_groups + study_groups
             for group_id in all_groups:
                 for time_slot_id in time_slots:
                     group_time_vars = [
                         var
-                        for (l_id, t_id, g_id, r_id, ts_id), var in self.variables.items()
+                        for (
+                            l_id,
+                            t_id,
+                            g_id,
+                            r_id,
+                            ts_id,
+                        ), var in self.variables.items()
                         if g_id == group_id and ts_id == time_slot_id
                     ]
                     for i in range(len(group_time_vars)):
@@ -252,12 +274,24 @@ class ScheduleEncoder:
                         for time_slot_id in time_slots:
                             class_vars = [
                                 var
-                                for (l_id, t_id, g_id, r_id, ts_id), var in self.variables.items()
+                                for (
+                                    l_id,
+                                    t_id,
+                                    g_id,
+                                    r_id,
+                                    ts_id,
+                                ), var in self.variables.items()
                                 if g_id == class_group_id and ts_id == time_slot_id
                             ]
                             study_vars = [
                                 var
-                                for (l_id, t_id, g_id, r_id, ts_id), var in self.variables.items()
+                                for (
+                                    l_id,
+                                    t_id,
+                                    g_id,
+                                    r_id,
+                                    ts_id,
+                                ), var in self.variables.items()
                                 if g_id == study_group_id and ts_id == time_slot_id
                             ]
                             for class_var in class_vars:
@@ -272,16 +306,28 @@ class ScheduleEncoder:
                         a, b = sgs[i], sgs[j]
                         if a != b:
                             overlapping_sg_pairs.add((min(a, b), max(a, b)))
-            for (sg_a, sg_b) in overlapping_sg_pairs:
+            for sg_a, sg_b in overlapping_sg_pairs:
                 for time_slot_id in time_slots:
                     a_vars = [
                         var
-                        for (l_id, t_id, g_id, r_id, ts_id), var in self.variables.items()
+                        for (
+                            l_id,
+                            t_id,
+                            g_id,
+                            r_id,
+                            ts_id,
+                        ), var in self.variables.items()
                         if g_id == sg_a and ts_id == time_slot_id
                     ]
                     b_vars = [
                         var
-                        for (l_id, t_id, g_id, r_id, ts_id), var in self.variables.items()
+                        for (
+                            l_id,
+                            t_id,
+                            g_id,
+                            r_id,
+                            ts_id,
+                        ), var in self.variables.items()
                         if g_id == sg_b and ts_id == time_slot_id
                     ]
                     for av in a_vars:
@@ -292,7 +338,13 @@ class ScheduleEncoder:
                 for time_slot_id in time_slots:
                     room_time_vars = [
                         var
-                        for (l_id, t_id, cg_id, r_id, ts_id), var in self.variables.items()
+                        for (
+                            l_id,
+                            t_id,
+                            cg_id,
+                            r_id,
+                            ts_id,
+                        ), var in self.variables.items()
                         if r_id == room_id and ts_id == time_slot_id
                     ]
                     for i in range(len(room_time_vars)):
@@ -387,7 +439,7 @@ class ScheduleEncoder:
                 max_daily_lessons = constraint_data.get("max_daily_lessons")
                 if max_daily_lessons:
                     pass
-            
+
             elif constraint_type == "study_group_preference":
                 study_group_id = constraint_data.get("study_group_id")
                 max_daily_lessons = constraint_data.get("max_daily_lessons")

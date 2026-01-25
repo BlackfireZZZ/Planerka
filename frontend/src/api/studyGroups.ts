@@ -66,10 +66,7 @@ export const studyGroupsApi = {
     return response.data;
   },
 
-  update: async (
-    id: string,
-    data: StudyGroupUpdate,
-  ): Promise<StudyGroup> => {
+  update: async (id: string, data: StudyGroupUpdate): Promise<StudyGroup> => {
     const response = await apiClient.put<StudyGroup>(
       `/api/v1/study-groups/${id}`,
       data,
@@ -92,9 +89,7 @@ export const studyGroupsApi = {
     return response.data;
   },
 
-  getLessons: async (
-    studyGroupId: string,
-  ): Promise<StudyGroupLessonLink[]> => {
+  getLessons: async (studyGroupId: string): Promise<StudyGroupLessonLink[]> => {
     const response = await apiClient.get<StudyGroupLessonLink[]>(
       `/api/v1/study-groups/${studyGroupId}/lessons`,
     );

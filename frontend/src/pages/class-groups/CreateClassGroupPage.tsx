@@ -102,9 +102,7 @@ export const CreateClassGroupPage: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle>Создать группу класса</CardTitle>
-          <CardDescription>
-            Введите данные новой группы класса
-          </CardDescription>
+          <CardDescription>Введите данные новой группы класса</CardDescription>
         </CardHeader>
         <CardContent>
           {error && (

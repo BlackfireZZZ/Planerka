@@ -20,15 +20,9 @@ class Constraint(Base):
         nullable=False,
         index=True,
     )
-    constraint_type = Column(
-        String, nullable=False
-    )
-    constraint_data = Column(
-        JSON, nullable=False
-    )
-    priority = Column(
-        Integer, default=1, nullable=False
-    )
+    constraint_type = Column(String, nullable=False)
+    constraint_data = Column(JSON, nullable=False)
+    priority = Column(Integer, default=1, nullable=False)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(

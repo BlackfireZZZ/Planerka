@@ -7,12 +7,13 @@ from . import (
     ping,
     rooms,
     schedules,
+    streams,
     students,
     study_groups,
-    streams,
     teachers,
     time_slots,
 )
+
 __all__ = [
     "auth",
     "class_groups",

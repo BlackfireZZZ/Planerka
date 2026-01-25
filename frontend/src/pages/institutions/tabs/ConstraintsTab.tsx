@@ -169,7 +169,9 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
-                {editingConstraint ? "Редактировать ограничение" : "Создать ограничение"}
+                {editingConstraint
+                  ? "Редактировать ограничение"
+                  : "Создать ограничение"}
               </DialogTitle>
             </DialogHeader>
             <Form {...form}>

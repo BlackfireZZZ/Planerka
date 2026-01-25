@@ -127,9 +127,7 @@ export const CreateStudentPage: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle>Создать студента</CardTitle>
-          <CardDescription>
-            Введите данные нового студента
-          </CardDescription>
+          <CardDescription>Введите данные нового студента</CardDescription>
         </CardHeader>
         <CardContent>
           {error && (

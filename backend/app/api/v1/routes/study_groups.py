@@ -16,9 +16,13 @@ from app.api.v1.schemas.study_group import (
 from app.core.dependencies import get_current_user
 from app.db.models.institution import Institution
 from app.db.models.lesson import Lesson
-from app.db.models.student import Student
 from app.db.models.stream import Stream
-from app.db.models.study_group import StudyGroup, study_group_lessons, study_group_student
+from app.db.models.student import Student
+from app.db.models.study_group import (
+    StudyGroup,
+    study_group_lessons,
+    study_group_student,
+)
 from app.db.models.user import User
 from app.db.session import get_db_session
 
@@ -48,13 +52,14 @@ async def verify_students_in_stream(
     """Verify that all students belong to class groups in the stream."""
     from app.db.models.class_group import ClassGroup
     from app.db.models.stream import stream_class_group
+
     result = await db.execute(
         select(ClassGroup.id)
         .join(stream_class_group)
         .where(stream_class_group.c.stream_id == stream_id)
     )
     stream_class_group_ids = {row[0] for row in result.all()}
-    
+
     if not stream_class_group_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -98,7 +103,7 @@ async def create_study_group(
         await verify_students_in_stream(
             data.student_ids, data.stream_id, institution_id, db
         )
-    
+
     study_group = StudyGroup(
         id=uuid4(),
         institution_id=institution_id,
@@ -114,7 +119,7 @@ async def create_study_group(
                     study_group_id=study_group.id, student_id=student_id
                 )
             )
-    
+
     await db.commit()
     await db.refresh(study_group)
     result = await db.execute(
@@ -123,7 +128,7 @@ async def create_study_group(
         .where(study_group_student.c.study_group_id == study_group.id)
     )
     students = result.scalars().all()
-    
+
     response = StudyGroupResponse(
         id=study_group.id,
         institution_id=study_group.institution_id,
@@ -132,7 +137,11 @@ async def create_study_group(
         created_at=study_group.created_at,
         updated_at=study_group.updated_at,
         students=[
-            {"id": str(s.id), "full_name": s.full_name, "student_number": s.student_number}
+            {
+                "id": str(s.id),
+                "full_name": s.full_name,
+                "student_number": s.student_number,
+            }
             for s in students
         ],
     )
@@ -148,14 +157,14 @@ async def list_study_groups(
 ) -> list[StudyGroupResponse]:
     """Get list of study groups."""
     await verify_institution_access(institution_id, current_user, db)
-    
+
     query = select(StudyGroup).where(StudyGroup.institution_id == institution_id)
     if stream_id:
         query = query.where(StudyGroup.stream_id == stream_id)
-    
+
     result = await db.execute(query)
     study_groups = result.scalars().all()
-    
+
     responses = []
     for study_group in study_groups:
         result = await db.execute(
@@ -172,12 +181,16 @@ async def list_study_groups(
             created_at=study_group.created_at,
             updated_at=study_group.updated_at,
             students=[
-                {"id": str(s.id), "full_name": s.full_name, "student_number": s.student_number}
+                {
+                    "id": str(s.id),
+                    "full_name": s.full_name,
+                    "student_number": s.student_number,
+                }
                 for s in students
             ],
         )
         responses.append(response)
-    
+
     return responses
 
 
@@ -204,7 +217,7 @@ async def get_study_group(
         .where(study_group_student.c.study_group_id == study_group.id)
     )
     students = result.scalars().all()
-    
+
     response = StudyGroupResponse(
         id=study_group.id,
         institution_id=study_group.institution_id,
@@ -213,7 +226,11 @@ async def get_study_group(
         created_at=study_group.created_at,
         updated_at=study_group.updated_at,
         students=[
-            {"id": str(s.id), "full_name": s.full_name, "student_number": s.student_number}
+            {
+                "id": str(s.id),
+                "full_name": s.full_name,
+                "student_number": s.student_number,
+            }
             for s in students
         ],
     )
@@ -238,10 +255,10 @@ async def update_study_group(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Study group not found"
         )
-    
+
     if data.name is not None:
         study_group.name = data.name
-    
+
     if data.stream_id is not None:
         result = await db.execute(
             select(Stream).where(
@@ -273,7 +290,7 @@ async def update_study_group(
                         study_group_id=study_group.id, student_id=student_id
                     )
                 )
-    
+
     await db.commit()
     await db.refresh(study_group)
     result = await db.execute(
@@ -282,7 +299,7 @@ async def update_study_group(
         .where(study_group_student.c.study_group_id == study_group.id)
     )
     students = result.scalars().all()
-    
+
     response = StudyGroupResponse(
         id=study_group.id,
         institution_id=study_group.institution_id,
@@ -291,7 +308,11 @@ async def update_study_group(
         created_at=study_group.created_at,
         updated_at=study_group.updated_at,
         students=[
-            {"id": str(s.id), "full_name": s.full_name, "student_number": s.student_number}
+            {
+                "id": str(s.id),
+                "full_name": s.full_name,
+                "student_number": s.student_number,
+            }
             for s in students
         ],
     )
@@ -334,9 +355,7 @@ async def assign_lessons_to_study_group(
     result = await db.execute(
         select(StudyGroup)
         .join(Institution)
-        .where(
-            StudyGroup.id == study_group_id, Institution.user_id == current_user.id
-        )
+        .where(StudyGroup.id == study_group_id, Institution.user_id == current_user.id)
     )
     study_group = result.scalar_one_or_none()
     if not study_group:
@@ -377,9 +396,7 @@ async def assign_lessons_to_study_group(
     ]
 
 
-@router.get(
-    "/{study_group_id}/lessons", response_model=list[StudyGroupLessonLink]
-)
+@router.get("/{study_group_id}/lessons", response_model=list[StudyGroupLessonLink])
 async def get_study_group_lessons(
     study_group_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -389,9 +406,7 @@ async def get_study_group_lessons(
     result = await db.execute(
         select(StudyGroup)
         .join(Institution)
-        .where(
-            StudyGroup.id == study_group_id, Institution.user_id == current_user.id
-        )
+        .where(StudyGroup.id == study_group_id, Institution.user_id == current_user.id)
     )
     study_group = result.scalar_one_or_none()
     if not study_group:

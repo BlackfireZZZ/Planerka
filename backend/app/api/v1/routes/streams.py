@@ -56,7 +56,7 @@ async def create_stream(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Some class groups not found or don't belong to this institution",
             )
-    
+
     stream = Stream(
         id=uuid4(),
         institution_id=institution_id,
@@ -71,7 +71,7 @@ async def create_stream(
                     stream_id=stream.id, class_group_id=class_group_id
                 )
             )
-    
+
     await db.commit()
     await db.refresh(stream)
     result = await db.execute(
@@ -80,16 +80,14 @@ async def create_stream(
         .where(stream_class_group.c.stream_id == stream.id)
     )
     class_groups = result.scalars().all()
-    
+
     response = StreamResponse(
         id=stream.id,
         institution_id=stream.institution_id,
         name=stream.name,
         created_at=stream.created_at,
         updated_at=stream.updated_at,
-        class_groups=[
-            {"id": str(cg.id), "name": cg.name} for cg in class_groups
-        ],
+        class_groups=[{"id": str(cg.id), "name": cg.name} for cg in class_groups],
     )
     return response
 
@@ -106,7 +104,7 @@ async def list_streams(
         select(Stream).where(Stream.institution_id == institution_id)
     )
     streams = result.scalars().all()
-    
+
     responses = []
     for stream in streams:
         result = await db.execute(
@@ -121,12 +119,10 @@ async def list_streams(
             name=stream.name,
             created_at=stream.created_at,
             updated_at=stream.updated_at,
-            class_groups=[
-                {"id": str(cg.id), "name": cg.name} for cg in class_groups
-            ],
+            class_groups=[{"id": str(cg.id), "name": cg.name} for cg in class_groups],
         )
         responses.append(response)
-    
+
     return responses
 
 
@@ -153,16 +149,14 @@ async def get_stream(
         .where(stream_class_group.c.stream_id == stream.id)
     )
     class_groups = result.scalars().all()
-    
+
     response = StreamResponse(
         id=stream.id,
         institution_id=stream.institution_id,
         name=stream.name,
         created_at=stream.created_at,
         updated_at=stream.updated_at,
-        class_groups=[
-            {"id": str(cg.id), "name": cg.name} for cg in class_groups
-        ],
+        class_groups=[{"id": str(cg.id), "name": cg.name} for cg in class_groups],
     )
     return response
 
@@ -185,7 +179,7 @@ async def update_stream(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Stream not found"
         )
-    
+
     if data.name is not None:
         stream.name = data.name
     if data.class_group_ids is not None:
@@ -214,7 +208,7 @@ async def update_stream(
                         stream_id=stream.id, class_group_id=class_group_id
                     )
                 )
-    
+
     await db.commit()
     await db.refresh(stream)
     result = await db.execute(
@@ -223,16 +217,14 @@ async def update_stream(
         .where(stream_class_group.c.stream_id == stream.id)
     )
     class_groups = result.scalars().all()
-    
+
     response = StreamResponse(
         id=stream.id,
         institution_id=stream.institution_id,
         name=stream.name,
         created_at=stream.created_at,
         updated_at=stream.updated_at,
-        class_groups=[
-            {"id": str(cg.id), "name": cg.name} for cg in class_groups
-        ],
+        class_groups=[{"id": str(cg.id), "name": cg.name} for cg in class_groups],
     )
     return response
 

@@ -62,7 +62,8 @@ export const ForgotPasswordPage: React.FC = () => {
         <CardHeader>
           <CardTitle>Проверьте вашу почту</CardTitle>
           <CardDescription>
-            Мы отправили ссылку для сброса пароля на ваш адрес электронной почты.
+            Мы отправили ссылку для сброса пароля на ваш адрес электронной
+            почты.
           </CardDescription>
         </CardHeader>
         <CardFooter className="flex justify-center">
@@ -78,9 +79,7 @@ export const ForgotPasswordPage: React.FC = () => {
     <Card className="w-full">
       <CardHeader>
         <CardTitle>Забыли пароль</CardTitle>
-        <CardDescription>
-          Введите ваш email для сброса пароля
-        </CardDescription>
+        <CardDescription>Введите ваш email для сброса пароля</CardDescription>
       </CardHeader>
       <CardContent>
         {error && (
@@ -112,7 +111,9 @@ export const ForgotPasswordPage: React.FC = () => {
               className="w-full"
               disabled={form.formState.isSubmitting}
             >
-              {form.formState.isSubmitting ? "Отправка..." : "Отправить ссылку для сброса"}
+              {form.formState.isSubmitting
+                ? "Отправка..."
+                : "Отправить ссылку для сброса"}
             </Button>
           </form>
         </Form>

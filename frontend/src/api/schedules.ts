@@ -91,7 +91,9 @@ export const schedulesApi = {
     study_groups: import("./studyGroups").StudyGroup[];
     students: import("./students").Student[];
   }> => {
-    const response = await apiClient.get(`/api/v1/schedules/${id}/with-references`);
+    const response = await apiClient.get(
+      `/api/v1/schedules/${id}/with-references`,
+    );
     return response.data;
   },
 

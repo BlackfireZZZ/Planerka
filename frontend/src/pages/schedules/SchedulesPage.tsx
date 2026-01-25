@@ -164,9 +164,13 @@ export const SchedulesPage: React.FC = () => {
                       Статус:{" "}
                       <span className="capitalize">{schedule.status}</span>
                     </p>
-                    {(schedule.entries_count ?? schedule.entries?.length ?? 0) > 0 && (
+                    {(schedule.entries_count ?? schedule.entries?.length ?? 0) >
+                      0 && (
                       <p className="text-xs text-muted-foreground">
-                        {schedule.entries_count ?? schedule.entries?.length ?? 0} записей
+                        {schedule.entries_count ??
+                          schedule.entries?.length ??
+                          0}{" "}
+                        записей
                       </p>
                     )}
                   </div>
@@ -204,7 +208,9 @@ export const SchedulesPage: React.FC = () => {
           {!loading && schedules.length === 0 && selectedInstitutionId && (
             <Card className="p-12 text-center">
               <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground mb-4">Расписания не найдены</p>
+              <p className="text-muted-foreground mb-4">
+                Расписания не найдены
+              </p>
               <Button asChild>
                 <Link
                   to={`/schedules/new?institution_id=${selectedInstitutionId}`}

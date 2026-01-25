@@ -66,6 +66,8 @@ class RedisCache:
         if self._client:
             await self._client.close()
             self._client = None
+
+
 _redis_instance: Optional[RedisCache] = None
 
 

@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql.base import UUID
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
+
 stream_class_group = Table(
     "stream_class_groups",
     Base.metadata,

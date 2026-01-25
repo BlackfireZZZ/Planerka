@@ -141,7 +141,9 @@ export const RegisterPage: React.FC = () => {
               className="w-full"
               disabled={form.formState.isSubmitting}
             >
-              {form.formState.isSubmitting ? "Регистрация..." : "Зарегистрироваться"}
+              {form.formState.isSubmitting
+                ? "Регистрация..."
+                : "Зарегистрироваться"}
             </Button>
           </form>
         </Form>

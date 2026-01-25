@@ -22,19 +22,25 @@ interface GroupLessonsTabProps {
   institutionId: string;
 }
 
-type AssigningGroup = { type: "class"; id: string; name: string } | { type: "study"; id: string; name: string };
+type AssigningGroup =
+  | { type: "class"; id: string; name: string }
+  | { type: "study"; id: string; name: string };
 
 export const GroupLessonsTab: React.FC<GroupLessonsTabProps> = ({
   institutionId,
 }) => {
   const [classGroups, setClassGroups] = useState<ClassGroup[]>([]);
   const [studyGroups, setStudyGroups] = useState<StudyGroup[]>([]);
-  const [streams, setStreams] = useState<Array<{ id: string; name: string }>>([]);
+  const [streams, setStreams] = useState<Array<{ id: string; name: string }>>(
+    [],
+  );
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [loading, setLoading] = useState(true);
   const [assigning, setAssigning] = useState<AssigningGroup | null>(null);
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
-  const [assigningItems, setAssigningItems] = useState<ClassGroupLessonAssignment[]>([]);
+  const [assigningItems, setAssigningItems] = useState<
+    ClassGroupLessonAssignment[]
+  >([]);
   const [loadingLessons, setLoadingLessons] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -64,12 +70,15 @@ export const GroupLessonsTab: React.FC<GroupLessonsTabProps> = ({
   useEffect(() => {
     if (isAssignDialogOpen && assigning) {
       setLoadingLessons(true);
-      const fetch = assigning.type === "class"
-        ? classGroupsApi.getLessons(assigning.id)
-        : studyGroupsApi.getLessons(assigning.id);
+      const fetch =
+        assigning.type === "class"
+          ? classGroupsApi.getLessons(assigning.id)
+          : studyGroupsApi.getLessons(assigning.id);
       fetch
         .then((r) => {
-          setAssigningItems(r.map((x) => ({ lesson_id: x.lesson_id, count: x.count })));
+          setAssigningItems(
+            r.map((x) => ({ lesson_id: x.lesson_id, count: x.count })),
+          );
         })
         .catch((err) => {
           console.error("Failed to load lessons for group:", err);
@@ -205,9 +214,7 @@ export const GroupLessonsTab: React.FC<GroupLessonsTabProps> = ({
       <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              Назначить уроки для {assigning?.name}
-            </DialogTitle>
+            <DialogTitle>Назначить уроки для {assigning?.name}</DialogTitle>
           </DialogHeader>
           <AssignLessonsForm
             lessons={lessons}
@@ -237,14 +244,18 @@ const AssignLessonsForm: React.FC<AssignLessonsFormProps> = ({
   onAssign,
   onCancel,
 }) => {
-  const [selected, setSelected] = useState<Set<string>>(() => new Set(initialItems.map((x) => x.lesson_id)));
+  const [selected, setSelected] = useState<Set<string>>(
+    () => new Set(initialItems.map((x) => x.lesson_id)),
+  );
   const [counts, setCounts] = useState<Record<string, number>>(() =>
-    Object.fromEntries(initialItems.map((x) => [x.lesson_id, x.count]))
+    Object.fromEntries(initialItems.map((x) => [x.lesson_id, x.count])),
   );
 
   useEffect(() => {
     setSelected(new Set(initialItems.map((x) => x.lesson_id)));
-    setCounts(Object.fromEntries(initialItems.map((x) => [x.lesson_id, x.count])));
+    setCounts(
+      Object.fromEntries(initialItems.map((x) => [x.lesson_id, x.count])),
+    );
   }, [initialItems]);
 
   const handleToggle = (lessonId: string) => {
@@ -270,10 +281,12 @@ const AssignLessonsForm: React.FC<AssignLessonsFormProps> = ({
   };
 
   const handleSubmit = () => {
-    const items: ClassGroupLessonAssignment[] = Array.from(selected).map((lessonId) => ({
-      lesson_id: lessonId,
-      count: Math.max(1, counts[lessonId] ?? 1),
-    }));
+    const items: ClassGroupLessonAssignment[] = Array.from(selected).map(
+      (lessonId) => ({
+        lesson_id: lessonId,
+        count: Math.max(1, counts[lessonId] ?? 1),
+      }),
+    );
     onAssign(items);
   };
 
@@ -318,7 +331,9 @@ const AssignLessonsForm: React.FC<AssignLessonsFormProps> = ({
                     type="number"
                     min={1}
                     value={counts[lesson.id] ?? 1}
-                    onChange={(e) => handleCountChange(lesson.id, e.target.value)}
+                    onChange={(e) =>
+                      handleCountChange(lesson.id, e.target.value)
+                    }
                     className="w-16 h-8"
                   />
                 </div>

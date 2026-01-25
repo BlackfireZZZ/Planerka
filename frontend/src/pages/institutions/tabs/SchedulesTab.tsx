@@ -78,8 +78,9 @@ export const SchedulesTab: React.FC<SchedulesTabProps> = ({
                       {schedule.name}
                     </h4>
                   </Link>
-                    <p className="text-sm text-muted-foreground mt-1">
-                    Записей: {schedule.entries_count ?? schedule.entries?.length ?? 0}
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Записей:{" "}
+                    {schedule.entries_count ?? schedule.entries?.length ?? 0}
                   </p>
                   {schedule.status && (
                     <p className="text-sm text-muted-foreground">

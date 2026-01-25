@@ -188,7 +188,9 @@ export const TeachersTab: React.FC<TeachersTabProps> = ({ institutionId }) => {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {editingTeacher ? "Редактировать преподавателя" : "Создать преподавателя"}
+                {editingTeacher
+                  ? "Редактировать преподавателя"
+                  : "Создать преподавателя"}
               </DialogTitle>
             </DialogHeader>
             <Form {...form}>

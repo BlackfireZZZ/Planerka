@@ -6,11 +6,13 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.core.config import settings
 from app.db.base import Base
 from app.db.models import *
+
 config = context.config
 if config.get_main_option("sqlalchemy.url") == "driver://user:pass@localhost/dbname":
     config.set_main_option("sqlalchemy.url", settings.DATABASE_URL_SYNC)

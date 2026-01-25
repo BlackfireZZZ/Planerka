@@ -128,7 +128,6 @@ async def get_schedule_with_references(
     from app.api.v1.schemas.study_group import StudyGroupResponse
     from app.api.v1.schemas.teacher import TeacherResponse
     from app.api.v1.schemas.time_slot import TimeSlotResponse
-
     from app.db.models import (
         ClassGroup,
         Lesson,
@@ -169,13 +168,41 @@ async def get_schedule_with_references(
         "entries": [ScheduleEntryResponse.model_validate(e) for e in entries],
     }
 
-    ts = (await db.execute(select(TimeSlot).where(TimeSlot.institution_id == iid))).scalars().all()
-    les = (await db.execute(select(Lesson).where(Lesson.institution_id == iid))).scalars().all()
-    tch = (await db.execute(select(Teacher).where(Teacher.institution_id == iid))).scalars().all()
-    rm = (await db.execute(select(Room).where(Room.institution_id == iid))).scalars().all()
-    cg = (await db.execute(select(ClassGroup).where(ClassGroup.institution_id == iid))).scalars().all()
-    sg = (await db.execute(select(StudyGroup).where(StudyGroup.institution_id == iid))).scalars().all()
-    st = (await db.execute(select(Student).where(Student.institution_id == iid))).scalars().all()
+    ts = (
+        (await db.execute(select(TimeSlot).where(TimeSlot.institution_id == iid)))
+        .scalars()
+        .all()
+    )
+    les = (
+        (await db.execute(select(Lesson).where(Lesson.institution_id == iid)))
+        .scalars()
+        .all()
+    )
+    tch = (
+        (await db.execute(select(Teacher).where(Teacher.institution_id == iid)))
+        .scalars()
+        .all()
+    )
+    rm = (
+        (await db.execute(select(Room).where(Room.institution_id == iid)))
+        .scalars()
+        .all()
+    )
+    cg = (
+        (await db.execute(select(ClassGroup).where(ClassGroup.institution_id == iid)))
+        .scalars()
+        .all()
+    )
+    sg = (
+        (await db.execute(select(StudyGroup).where(StudyGroup.institution_id == iid)))
+        .scalars()
+        .all()
+    )
+    st = (
+        (await db.execute(select(Student).where(Student.institution_id == iid)))
+        .scalars()
+        .all()
+    )
 
     sg_ids = [s.id for s in sg]
     sg_to_students: dict = {}
@@ -189,7 +216,11 @@ async def get_schedule_with_references(
         for row in sgs_result.all():
             student, sgg_id = row[0], row[1]
             sg_to_students.setdefault(sgg_id, []).append(
-                {"id": str(student.id), "full_name": student.full_name, "student_number": student.student_number}
+                {
+                    "id": str(student.id),
+                    "full_name": student.full_name,
+                    "student_number": student.student_number,
+                }
             )
 
     study_groups_data = [

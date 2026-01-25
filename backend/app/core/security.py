@@ -10,6 +10,7 @@ from fastapi import HTTPException, status
 from itsdangerous import URLSafeTimedSerializer
 
 from app.core.config import settings
+
 password_hasher = PasswordHasher()
 csrf_serializer = URLSafeTimedSerializer(settings.CSRF_SECRET_KEY)
 

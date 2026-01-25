@@ -202,7 +202,8 @@ export const StreamsTab: React.FC<StreamsTabProps> = ({ institutionId }) => {
                                           ])
                                         : field.onChange(
                                             field.value?.filter(
-                                              (value) => value !== classGroup.id,
+                                              (value) =>
+                                                value !== classGroup.id,
                                             ),
                                           );
                                     }}
@@ -257,14 +258,13 @@ export const StreamsTab: React.FC<StreamsTabProps> = ({ institutionId }) => {
                 <div>
                   <h4 className="font-semibold">{stream.name}</h4>
                   <p className="text-sm text-muted-foreground mt-1">
-                    {stream.class_groups.length} групп{stream.class_groups.length !== 1 ? "ы" : "а"} классов
+                    {stream.class_groups.length} групп
+                    {stream.class_groups.length !== 1 ? "ы" : "а"} классов
                   </p>
                   {stream.class_groups.length > 0 && (
                     <div className="mt-2">
                       <p className="text-xs text-muted-foreground">
-                        {stream.class_groups
-                          .map((cg) => cg.name)
-                          .join(", ")}
+                        {stream.class_groups.map((cg) => cg.name).join(", ")}
                       </p>
                     </div>
                   )}

@@ -144,7 +144,9 @@ export const ClassGroupsTab: React.FC<ClassGroupsTabProps> = ({
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {editingClassGroup ? "Редактировать группу класса" : "Создать группу класса"}
+                {editingClassGroup
+                  ? "Редактировать группу класса"
+                  : "Создать группу класса"}
               </DialogTitle>
             </DialogHeader>
             <Form {...form}>

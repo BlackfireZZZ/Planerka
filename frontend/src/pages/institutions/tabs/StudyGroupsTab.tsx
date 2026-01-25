@@ -47,8 +47,9 @@ export const StudyGroupsTab: React.FC<StudyGroupsTabProps> = ({
   const [streams, setStreams] = useState<Stream[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingStudyGroup, setEditingStudyGroup] =
-    useState<StudyGroup | null>(null);
+  const [editingStudyGroup, setEditingStudyGroup] = useState<StudyGroup | null>(
+    null,
+  );
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   useEffect(() => {
@@ -90,9 +91,7 @@ export const StudyGroupsTab: React.FC<StudyGroupsTabProps> = ({
     if (!selectedStream) return [];
     const stream = streams.find((s) => s.id === selectedStream);
     if (!stream) return [];
-    const streamClassGroupIds = new Set(
-      stream.class_groups.map((cg) => cg.id),
-    );
+    const streamClassGroupIds = new Set(stream.class_groups.map((cg) => cg.id));
     return students.filter((s) => streamClassGroupIds.has(s.class_group_id));
   };
 
@@ -284,7 +283,8 @@ export const StudyGroupsTab: React.FC<StudyGroupsTabProps> = ({
                           ))
                         ) : (
                           <p className="text-sm text-muted-foreground">
-                            Нет доступных студентов в группах классов этого потока
+                            Нет доступных студентов в группах классов этого
+                            потока
                           </p>
                         )
                       ) : null}
@@ -331,7 +331,8 @@ export const StudyGroupsTab: React.FC<StudyGroupsTabProps> = ({
                     Поток: {getStreamName(studyGroup.stream_id)}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {studyGroup.students.length} студент{studyGroup.students.length !== 1 ? "ов" : ""}
+                    {studyGroup.students.length} студент
+                    {studyGroup.students.length !== 1 ? "ов" : ""}
                   </p>
                   {studyGroup.students.length > 0 && (
                     <div className="mt-2">

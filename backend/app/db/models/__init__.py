@@ -14,9 +14,9 @@ from .room import Room
 from .schedule import Schedule
 from .schedule_entry import ScheduleEntry
 from .session import Session
+from .stream import Stream
 from .student import Student
 from .study_group import StudyGroup
-from .stream import Stream
 from .teacher import Teacher
 from .teacher_lesson import TeacherLesson
 from .time_slot import TimeSlot

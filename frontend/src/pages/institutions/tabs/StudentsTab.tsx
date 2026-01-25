@@ -134,7 +134,9 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({ institutionId }) => {
   };
 
   const getClassGroupName = (classGroupId: string) => {
-    return classGroups.find((cg) => cg.id === classGroupId)?.name || "Неизвестно";
+    return (
+      classGroups.find((cg) => cg.id === classGroupId)?.name || "Неизвестно"
+    );
   };
 
   if (loading) {

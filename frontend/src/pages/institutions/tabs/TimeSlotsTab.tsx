@@ -160,7 +160,9 @@ export const TimeSlotsTab: React.FC<TimeSlotsTabProps> = ({
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {editingTimeSlot ? "Редактировать временной слот" : "Создать временной слот"}
+                {editingTimeSlot
+                  ? "Редактировать временной слот"
+                  : "Создать временной слот"}
               </DialogTitle>
             </DialogHeader>
             <Form {...form}>
@@ -278,9 +280,7 @@ export const TimeSlotsTab: React.FC<TimeSlotsTabProps> = ({
                   <p className="text-sm text-muted-foreground mt-1">
                     {timeSlot.start_time} - {timeSlot.end_time}
                   </p>
-                  <p className="text-sm text-muted-foreground">
-                    Slot
-                  </p>
+                  <p className="text-sm text-muted-foreground">Slot</p>
                 </div>
                 <div className="flex gap-1">
                   <Button
